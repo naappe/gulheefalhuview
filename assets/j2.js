@@ -8,7 +8,7 @@ const GALLERY=[
   ["1550966871-3ed3cdb5ed0c","Warm restaurant interior with evening lighting"],
   ["1504674900247-0877df9cc836","A table filled with freshly prepared dishes"],
   ["1515003197210-e0cd71810b5f","Colourful fire-kitchen inspired dining spread"],
-  ["1414016642750-4f8a8dcd3d3f","Candlelit table set for an evening meal"],
+  ["1766957451060-9d44ef843e82","Candlelit restaurant tables set for an evening meal"],
   ["1547592180-85f173990554","Freshly plated food ready to serve"],
   ["1559339352-11d035aa65de","Restaurant tables prepared for guests"]
 ];
