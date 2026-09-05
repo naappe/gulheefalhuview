@@ -9,6 +9,7 @@ const SITE={
   tiktok:""
 };
 const IMG=id=>`https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=650&q=80`;
+const IMG_BIG=id=>`https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&q=85`;
 const MENU={
   "Tandoori Pizzas":[
     {n:"Tandoori Chicken Pizza",p:145,d:"Smoky tandoori chicken, mozzarella, red onion, capsicum and house tandoor sauce.",i:"1565299624946-b28f40a0ae38"},
