@@ -34,7 +34,7 @@ const IMG_BIG=ref=>{
 const IMAGE_FALLBACKS={
   "Tandoori Pizzas":["1565299624946-b28f40a0ae38","1594007654729-407eedc4be65","1571407970349-bc81e7e96d47"],
   "Fire Kitchen":["1555939594-58d7cb561ad1","1603360946369-dc9bb6258143","1540420773420-3366772f4999"],
-  "Naan & Wraps":["1601050690597-df0568f70950","1509440159596-0249088772ff","1568254183919-78a4f43a2877"],
+  "Fire Handhelds":["px:29306505","px:6416559","px:34320705","px:7936651"],
   "Desserts":["1606313564200-e75d5e30476c","1571877227200-a0d98ea607e9","1533134242443-d4fd215305ad"],
   "Drinks":["1551538827-9c037cb4f32a","1536935338788-846bb9981813","1523677011781-c91d1bbe2f9e"]
 };
@@ -71,12 +71,16 @@ const MENU={
     {n:"Tandoor Maldivian Fish",p:165,d:"Fish marinated with warming spice and finished over intense heat.",i:"1467003909585-2f8a72700288"},
     {n:"Fire-Roasted Vegetable Platter",p:95,d:"Seasonal vegetables roasted and finished with herbs.",i:"1540420773420-3366772f4999"}
   ],
-  "Naan & Wraps":[
+  "Fire Handhelds":[
     {n:"Loaded Tandoor Naan",p:65,d:"Fresh naan loaded with cheese, herbs and tandoor butter.",i:"1579871494447-9811cf80d66c"},
     {n:"Chicken Naan Pocket",p:90,d:"Warm naan stuffed with tandoori chicken, salad and mint yoghurt.",i:"1601050690597-df0568f70950"},
     {n:"Mas Huni Stuffed Naan",p:75,d:"A Maldivian-inspired tuna, coconut and onion filling inside fresh naan.",i:"1509440159596-0249088772ff"},
     {n:"Garlic Cheese Naan",p:45,d:"Fresh naan brushed with garlic butter and melted cheese.",i:"1568254183919-78a4f43a2877"},
-    {n:"Tandoori Chicken Wrap",p:85,d:"Tandoori chicken, crisp vegetables and mint yoghurt in a soft wrap.",i:"px:29306507"}
+    {n:"Tandoori Chicken Wrap",p:85,d:"Tandoori chicken, crisp vegetables and mint yoghurt in a soft wrap.",i:"px:29306507"},
+    {n:"Tandoor Chicken Shawarma",p:80,d:"Fire-charred tandoori chicken, garlic sauce, pickles, onion and lettuce wrapped in fresh flatbread.",i:"px:29306505"},
+    {n:"Fire Chicken Shawarma Loaded",p:95,d:"A larger shawarma packed with tandoori chicken, cheese, fire chilli sauce and garlic sauce.",i:"px:18177338"},
+    {n:"Tandoor Chicken Burger",p:100,d:"Tandoori chicken, cheese, charred onion, lettuce and mint-garlic sauce in a toasted bun.",i:"px:34320705"},
+    {n:"Tandoor Potato Wedges",p:40,d:"Crispy seasoned potato wedges finished with fire spice and served with garlic sauce.",i:"px:7936651"}
   ],
   "Desserts":[
     {n:"Molten Chocolate Clay Pot",p:75,d:"Warm chocolate cake with a soft molten centre.",i:"1606313564200-e75d5e30476c"},
