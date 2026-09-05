@@ -1,7 +1,7 @@
 const SITE={
-  phone:"",
-  whatsapp:"",
-  email:"",
+  phone:"+960 7635654",
+  whatsapp:"9607635654",
+  email:"naappe@gmail.com",
   hours:"",
   map:"https://www.google.com/maps/search/?api=1&query=Gulheefalhu%2C%20Maldives",
   instagram:"",
