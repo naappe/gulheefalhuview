@@ -5,12 +5,12 @@ const SIGNATURE=[
   {cat:"Fire Kitchen",name:"Fire-Roasted Prawns"}
 ];
 const GALLERY=[
-  ["1517248135467-4c7edcad34c4","Warm restaurant dining room"],
-  ["1565299624946-b28f40a0ae38","Fresh pizza with a crisp baked crust"],
-  ["1555939594-58d7cb561ad1","Live fire cooking"],
-  ["1414235077428-338989a2e8c0","Restaurant table setting"],
-  ["1606313564200-e75d5e30476c","Warm chocolate dessert"],
-  ["1551538827-9c037cb4f32a","Fresh signature drink"]
+  ["1550966871-3ed3cdb5ed0c","Warm restaurant interior with evening lighting"],
+  ["1504674900247-0877df9cc836","A table filled with freshly prepared dishes"],
+  ["1515003197210-e0cd71810b5f","Colourful fire-kitchen inspired dining spread"],
+  ["1414016642750-4f8a8dcd3d3f","Candlelit table set for an evening meal"],
+  ["1547592180-85f173990554","Freshly plated food ready to serve"],
+  ["1559339352-11d035aa65de","Restaurant tables prepared for guests"]
 ];
 const byName=(cat,name)=>MENU[cat].find(x=>x.n===name);
 const sig=document.getElementById('signatureGrid');
