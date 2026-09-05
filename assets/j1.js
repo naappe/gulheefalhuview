@@ -2,7 +2,7 @@ const SITE={
   phone:"+960 7635654",
   whatsapp:"9607635654",
   email:"naappe@gmail.com",
-  hours:"",
+  hours:"Daily · 11:00 AM – 11:00 PM",
   map:"https://www.google.com/maps/search/?api=1&query=Gulheefalhu%2C%20Maldives",
   instagram:"",
   facebook:"",
@@ -30,7 +30,7 @@ const MENU={
   "Naan & Wraps":[
     {n:"Loaded Tandoor Naan",p:65,d:"Fresh naan loaded with cheese, herbs and tandoor butter.",i:"1579871494447-9811cf80d66c"},
     {n:"Chicken Naan Pocket",p:90,d:"Warm naan stuffed with tandoori chicken, salad and mint yoghurt.",i:"1601050690597-df0568f70950"},
-    {n:"Mas Huni Stuffed Naan",p:75,d:"A Maldivian-inspired tuna, coconut and onion filling inside fresh naan.",i:"1568254183919-78a4f43a2877"},
+    {n:"Mas Huni Stuffed Naan",p:75,d:"A Maldivian-inspired tuna, coconut and onion filling inside fresh naan.",i:"1509440159596-0249088772ff"},
     {n:"Garlic Cheese Naan",p:45,d:"Fresh naan brushed with garlic butter and melted cheese.",i:"1568254183919-78a4f43a2877"},
     {n:"Tandoori Chicken Wrap",p:85,d:"Tandoori chicken, crisp vegetables and mint yoghurt in a soft wrap.",i:"1633506189113-a112d7a0f3f8"}
   ],
