@@ -3,6 +3,8 @@ const SITE={
   whatsapp:"9607635654",
   email:"naappe@gmail.com",
   hours:"Daily · 11:00 AM – 11:00 PM",
+  reservationStart:"11:00",
+  reservationLast:"22:30",
   map:"https://www.google.com/maps/search/?api=1&query=Gulheefalhu%2C%20Maldives",
   instagram:"",
   facebook:"",
