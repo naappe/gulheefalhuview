@@ -3,5 +3,6 @@
   <url>
     <loc>https://naappe.github.io/gulheefalhuview/</loc>
     <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
   </url>
 </urlset>
