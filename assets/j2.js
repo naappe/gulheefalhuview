@@ -14,6 +14,6 @@ const GALLERY=[
 ];
 const byName=(cat,name)=>MENU[cat].find(x=>x.n===name);
 const sig=document.getElementById('signatureGrid');
-sig.innerHTML=SIGNATURE.map(s=>{const x=byName(s.cat,s.name);return `<article class="dish-card reveal"><img loading="lazy" src="${IMG(x.i)}" alt="${x.n}" onerror="menuImageFallback(this,'${s.cat.replaceAll("'","\\'")}','${x.n.replaceAll("'","\\'")}')"><div class="dish-body"><div class="dish-kicker">Signature</div><div class="dish-top"><h3>${x.n}</h3><span class="price">MVR ${x.p}</span></div><p>${x.d}</p></div></article>`}).join('');
+sig.innerHTML=SIGNATURE.map(s=>{const x=byName(s.cat,s.name);return `<article class="dish-card reveal"><img loading="lazy" decoding="async" width="760" height="570" src="${IMG(x.i,760,78)}" alt="${x.n}" onerror="menuImageFallback(this,'${s.cat.replaceAll("'","\\'")}','${x.n.replaceAll("'","\\'")}')"><div class="dish-body"><div class="dish-kicker">Signature</div><div class="dish-top"><h3>${x.n}</h3><span class="price">MVR ${x.p}</span></div><p>${x.d}</p></div></article>`}).join('');
 const cats=Object.keys(MENU),tabs=document.getElementById('tabs'),grid=document.getElementById('menuGrid'),search=document.getElementById('menuSearch');
 let activeCat=cats[0];
