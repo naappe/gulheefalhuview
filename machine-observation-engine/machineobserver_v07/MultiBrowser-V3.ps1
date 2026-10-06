@@ -1,177 +1,22 @@
-# Driver: launches Chrome + Edge, runs three sensors in parallel, correlates.
-
-[CmdletBinding()]
-param(
-    [int]$Duration      = 90,
-    [string]$OutDir     = "C:\MachineObserver",
-    [string]$Chrome     = "C:\Program Files\Google\Chrome\Application\chrome.exe",
-    [string]$Edge       = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-    [string]$ChromeProf = "$env:TEMP\mo-chrome-v3",
-    [string]$EdgeProf   = "$env:TEMP\mo-edge-v3",
-    [string]$TargetUrl  = "https://chat.deepseek.com/"
-)
-
-$ErrorActionPreference = "Stop"
-
-# Load modules
-. "$OutDir\CdpSensor.ps1"
-. "$OutDir\ProcessGraph.ps1"
-. "$OutDir\SocketSensor.ps1"
-. "$OutDir\Correlate-V3.ps1"
-
-if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
-
-$chromeCapture = Join-Path $OutDir "cdp-chrome.jsonl"
-$edgeCapture   = Join-Path $OutDir "cdp-edge.jsonl"
-$chromeSockets = Join-Path $OutDir "sock-chrome.jsonl"
-$edgeSockets   = Join-Path $OutDir "sock-edge.jsonl"
-$reportFile    = Join-Path $OutDir "report-v3.json"
-
-foreach ($f in @($chromeCapture, $edgeCapture, $chromeSockets, $edgeSockets, $reportFile)) {
-    if (Test-Path $f) { Remove-Item $f -Force }
-}
-
-Write-Host "=== MultiBrowser-V3 ===" -ForegroundColor Cyan
-Write-Host "[1/5] Launching Chrome :9222" -ForegroundColor Cyan
-Start-Process $Chrome -ArgumentList @(
-    "--remote-debugging-port=9222",
-    "--user-data-dir=$ChromeProf",
-    "--no-first-run",
-    "--no-default-browser-check",
-    $TargetUrl
-) | Out-Null
-
-Write-Host "[2/5] Launching Edge   :9223" -ForegroundColor Cyan
-Start-Process $Edge -ArgumentList @(
-    "--remote-debugging-port=9223",
-    "--user-data-dir=$EdgeProf",
-    "--no-first-run",
-    "--no-default-browser-check",
-    $TargetUrl
-) | Out-Null
-
-Start-Sleep -Seconds 10
-
-Write-Host "[3/5] Building process graphs ..." -ForegroundColor Cyan
-$chromeGraph = Get-ProcessGraph -BrowserName "chrome" -BrowserExePath $Chrome
-$edgeGraph   = Get-ProcessGraph -BrowserName "msedge" -BrowserExePath $Edge
-
-Write-Host ("       Chrome family: {0} PIDs" -f $chromeGraph.Count) -ForegroundColor DarkCyan
-Write-Host ("       Edge   family: {0} PIDs" -f $edgeGraph.Count)   -ForegroundColor DarkCyan
-
-Write-Host "[4/5] Starting socket sensors + CDP captures ..." -ForegroundColor Cyan
-
-$job = {
-    param($ChromeCapture, $EdgeCapture, $ChromeSockets, $EdgeSockets,
-          $ChromeGraph, $EdgeGraph, $Duration, $ModuleDir)
-
-    . "$ModuleDir\CdpSensor.ps1"
-    . "$ModuleDir\SocketSensor.ps1"
-
-    $socketJob = Start-Job -ScriptBlock {
-        param($OutDir, $ChromeSockets, $EdgeSockets, $ChromeGraph, $EdgeGraph, $Duration)
-        . "$OutDir\SocketSensor.ps1"
-        $end = (Get-Date).AddSeconds($Duration)
-        while ((Get-Date) -lt $end) {
-            $mid = (Get-Date).AddSeconds(1)
-            Start-SocketSensor -FamilyPIDs $ChromeGraph -OutFile $ChromeSockets -Seconds 1
-            Start-SocketSensor -FamilyPIDs $EdgeGraph   -OutFile $EdgeSockets   -Seconds 1
-        }
-    } -ArgumentList $ModuleDir, $ChromeSockets, $EdgeSockets, $ChromeGraph, $EdgeGraph, $Duration
-
-    $edgeJob = Start-Job -ScriptBlock {
-        param($OutDir, $Port, $Capture, $Label, $Duration)
-        . "$OutDir\CdpSensor.ps1"
-        Invoke-CdpCapture -Port $Port -OutFile $Capture -Label $Label -Seconds $Duration
-    } -ArgumentList $ModuleDir, 9223, $EdgeCapture, "edge", $Duration
-
-    Invoke-CdpCapture -Port 9222 -OutFile $ChromeCapture -Label "chrome" -Seconds $Duration
-
-    Wait-Job $edgeJob, $socketJob | Out-Null
-    Receive-Job $edgeJob | Out-Host
-    Remove-Job $edgeJob
-    Remove-Job $socketJob
-}
-
-& $job $chromeCapture $edgeCapture $chromeSockets $edgeSockets `
-    $chromeGraph $edgeGraph $Duration $OutDir
-
-Write-Host "[5/5] Correlating ..." -ForegroundColor Cyan
-
-# NOTE: the socket records were written by two different jobs; reload them
-$chromeSocketsLoaded = @()
-if (Test-Path $chromeSockets) {
-    $chromeSocketsLoaded = Get-Content $chromeSockets |
-        ForEach-Object { try { $_ | ConvertFrom-Json } catch {} } | Where-Object { $_ }
-}
-$edgeSocketsLoaded = @()
-if (Test-Path $edgeSockets) {
-    $edgeSocketsLoaded = Get-Content $edgeSockets |
-        ForEach-Object { try { $_ | ConvertFrom-Json } catch {} } | Where-Object { $_ }
-}
-
-# Merge socket records into one file for the correlator
-$mergedSockets = Join-Path $OutDir "sock-all.jsonl"
-if (Test-Path $mergedSockets) { Remove-Item $mergedSockets -Force }
-if ($chromeSocketsLoaded) { $chromeSocketsLoaded | ForEach-Object { $_ | ConvertTo-Json -Compress } | Add-Content $mergedSockets }
-if ($edgeSocketsLoaded)   { $edgeSocketsLoaded   | ForEach-Object { $_ | ConvertTo-Json -Compress } | Add-Content $mergedSockets }
-
-$chromeRows = Invoke-Correlate -CdpFile $chromeCapture -SocketFile $mergedSockets `
-    -FamilyPIDs $chromeGraph -BrowserName "chrome" -OutFile $null
-
-$edgeRows = Invoke-Correlate -CdpFile $edgeCapture -SocketFile $mergedSockets `
-    -FamilyPIDs $edgeGraph -BrowserName "edge" -OutFile $null
-
-Write-Host ""
-Write-Host "=== Chrome side ===" -ForegroundColor Cyan
-$chromeRows | Select-Object Status, Host, RemoteIP, Verdict, OwnerName, OwnerRole, LocalPort |
-    Format-Table -AutoSize
-
-Write-Host "=== Edge side ===" -ForegroundColor Cyan
-$edgeRows | Select-Object Status, Host, RemoteIP, Verdict, OwnerName, OwnerRole, LocalPort |
-    Format-Table -AutoSize
-
-Write-Host "=== Family summary ===" -ForegroundColor Cyan
-Write-Host ("Chrome family: {0} PIDs" -f $chromeGraph.Count)
-$chromeGraph.Values | Sort-Object Role | Format-Table PID, Role, RootPID -AutoSize
-
-Write-Host ("Edge family: {0} PIDs" -f $edgeGraph.Count)
-$edgeGraph.Values | Sort-Object Role | Format-Table PID, Role, RootPID -AutoSize
-
-function Get-Verdict {
-    param($Rows, [string]$ExpectedFamily)
-    if (-not $Rows -or $Rows.Count -eq 0) { return 'NO_DATA' }
-
-    $resolved = $Rows | Where-Object { $_.OwnerName }
-    if ($resolved.Count -eq 0) { return 'NO_DATA' }
-
-    $correct = ($resolved | Where-Object { $_.OwnerName -eq $ExpectedFamily }).Count
-    $wrong   = ($resolved | Where-Object { $_.OwnerName -ne $ExpectedFamily }).Count
-    $ambig   = ($Rows | Where-Object { $_.Verdict -eq 'AMBIGUOUS' }).Count
-
-    if ($wrong -eq 0 -and $ambig -eq 0) { return 'PASS' }
-    if ($wrong -eq 0 -and $ambig -gt 0) { return 'PARTIAL' }
-    if ($wrong -gt 0)                   { return 'AMBIGUOUS' }
-    return 'PARTIAL'
-}
-
-$chromeVerdict = Get-Verdict -Rows $chromeRows -ExpectedFamily 'chrome'
-$edgeVerdict   = Get-Verdict -Rows $edgeRows   -ExpectedFamily 'msedge'
-
-Write-Host ""
-Write-Host "=== Final verdict ===" -ForegroundColor Cyan
-Write-Host ("Chrome: {0}" -f $chromeVerdict) -ForegroundColor Green
-Write-Host ("Edge  : {0}" -f $edgeVerdict)   -ForegroundColor Green
-
-$report = [ordered]@{
-    timestamp       = (Get-Date).ToString("o")
-    chrome_verdict  = $chromeVerdict
-    edge_verdict    = $edgeVerdict
-    chrome_rows     = $chromeRows
-    edge_rows       = $edgeRows
-    chrome_family   = $chromeGraph.Values
-    edge_family     = $edgeGraph.Values
-}
-$report | ConvertTo-Json -Depth 8 | Set-Content -Path $reportFile -Encoding UTF8
-Write-Host ""
-Write-Host "Report: $reportFile" -ForegroundColor Yellow
+# MachineObserver V3.2 driver. SINGLE = consistent with one family socket, not proof.
+[CmdletBinding()]param([int]$Duration=60,[string]$OutDir="C:\MachineObserver",[string]$Chrome="C:\Program Files\Google\Chrome\Application\chrome.exe",[string]$Edge="C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",[string]$ChromeProf="$env:TEMP\mo-chrome-v32",[string]$EdgeProf="$env:TEMP\mo-edge-v32",[string]$TargetUrl="https://chat.deepseek.com/")
+$ErrorActionPreference="Stop";if(-not(Test-Path $OutDir)){New-Item -ItemType Directory $OutDir -Force|Out-Null};. "$OutDir\CdpSensor.ps1";. "$OutDir\ProcessGraph.ps1";. "$OutDir\SocketSensor.ps1";. "$OutDir\Correlate-V3.ps1"
+$cc=Join-Path $OutDir "cdp-chrome-v32.jsonl";$ec=Join-Path $OutDir "cdp-edge-v32.jsonl";$sf=Join-Path $OutDir "sockets-v32.jsonl";$rf=Join-Path $OutDir "report-v32.json";foreach($f in @($cc,$ec,$sf,$rf)){if(Test-Path $f){Remove-Item $f -Force}}
+function Wait-Cdp([int]$Port){$e=(Get-Date).AddSeconds(15);while((Get-Date)-lt $e){try{$null=Invoke-RestMethod "http://127.0.0.1:$Port/json/version" -TimeoutSec 1;return $true}catch{};Start-Sleep -Milliseconds 250};$false}
+Write-Host "=== MachineObserver V3.2 ===" -ForegroundColor Cyan
+Start-Process $Chrome -ArgumentList @("--remote-debugging-address=127.0.0.1","--remote-debugging-port=9222","--user-data-dir=$ChromeProf","--disable-sync","--no-first-run","--no-default-browser-check",$TargetUrl)|Out-Null
+Start-Process $Edge -ArgumentList @("--remote-debugging-address=127.0.0.1","--remote-debugging-port=9223","--user-data-dir=$EdgeProf","--disable-sync","--no-first-run","--no-default-browser-check",$TargetUrl)|Out-Null
+if(-not(Wait-Cdp 9222)){throw "Chrome CDP not ready"};if(-not(Wait-Cdp 9223)){throw "Edge CDP not ready"}
+$cg=Get-ControlledProcessGraph chrome 9222 $Chrome;$eg=Get-ControlledProcessGraph msedge 9223 $Edge;Write-Host "Chrome root=$($cg.RootPID) members=$($cg.Members.Count)";Write-Host "Edge root=$($eg.RootPID) members=$($eg.Members.Count)"
+# Run collectors concurrently as background jobs; functions are loaded inside each job.
+$sj=Start-Job -ArgumentList $OutDir,$sf,$Duration,$Chrome,$Edge -ScriptBlock {param($d,$f,$sec,$ch,$ed);. "$d\ProcessGraph.ps1";. "$d\SocketSensor.ps1";$a=Get-ControlledProcessGraph chrome 9222 $ch;$b=Get-ControlledProcessGraph msedge 9223 $ed;Start-SocketSensor -Graphs @($a,$b) -OutFile $f -Seconds $sec|Out-Null}
+$cj=Start-Job -ArgumentList $OutDir,$cc,$Duration -ScriptBlock {param($d,$f,$sec);. "$d\CdpSensor.ps1";Invoke-CdpCapture 9222 $f chrome $sec}
+$ej=Start-Job -ArgumentList $OutDir,$ec,$Duration -ScriptBlock {param($d,$f,$sec);. "$d\CdpSensor.ps1";Invoke-CdpCapture 9223 $f edge $sec}
+Wait-Job $sj,$cj,$ej|Out-Null;Receive-Job $cj,$ej|Out-Host;Remove-Job $sj,$cj,$ej
+$cr=@(Invoke-Correlate $cc $sf $cg chrome);$er=@(Invoke-Correlate $ec $sf $eg edge)
+function Summary($r){if(-not $r -or $r.Count -eq 0){return "UNKNOWN"};if(@($r|Where-Object Verdict -eq SINGLE).Count -eq 0){return "UNKNOWN"};if(@($r|Where-Object Verdict -eq CONTRADICTION).Count){return "MIXED"};"CONSISTENT"}
+$cs=Summary $cr;$es=Summary $er
+Write-Host "=== Chrome observations ===" -ForegroundColor Cyan;$cr|Select-Object Status,Host,RemoteIP,RemotePort,Verdict,CandidateCount,@{N="LocalPorts";E={$_.CandidateLocalPorts -join ","}}|Format-Table -AutoSize
+Write-Host "=== Edge observations ===" -ForegroundColor Cyan;$er|Select-Object Status,Host,RemoteIP,RemotePort,Verdict,CandidateCount,@{N="LocalPorts";E={$_.CandidateLocalPorts -join ","}}|Format-Table -AutoSize
+Write-Host "=== Summary (not PASS/FAIL) ===" -ForegroundColor Cyan;Write-Host "Chrome: $cs";Write-Host "Edge  : $es";Write-Host "SINGLE = consistent with one observed family socket; not causal proof." -ForegroundColor Yellow
+[ordered]@{version="3.2";timestamp=(Get-Date).ToUniversalTime().ToString("o");principle="Attributes requests to process families, not causally to specific TCP connections.";chrome_summary=$cs;edge_summary=$es;chrome_root=$cg.RootPID;edge_root=$eg.RootPID;chrome_rows=$cr;edge_rows=$er}|ConvertTo-Json -Depth 10|Set-Content $rf -Encoding UTF8;Write-Host "Report: $rf" -ForegroundColor Yellow
