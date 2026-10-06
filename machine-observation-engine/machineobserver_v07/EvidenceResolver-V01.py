@@ -13,10 +13,25 @@ def load(path):
     return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 def rows(report):
+    """Accept V1.3.x report row layouts without guessing one fixed key."""
     out=[]
+    seen=set()
+    def add(seq):
+        if not isinstance(seq,list): return
+        for x in seq:
+            if not isinstance(x,dict): continue
+            marker=(x.get("Browser"),x.get("Timestamp"),x.get("Url"),x.get("Verdict"),x.get("RemoteIP"),x.get("RemotePort"))
+            if marker in seen: continue
+            seen.add(marker); out.append(x)
     for k,v in report.items():
-        if k.endswith("_rows") and isinstance(v,list):
-            out.extend(v)
+        lk=str(k).lower()
+        if isinstance(v,list) and (lk.endswith("_rows") or lk.endswith("rows") or lk=="rows"):
+            add(v)
+        elif isinstance(v,dict):
+            for kk,vv in v.items():
+                lkk=str(kk).lower()
+                if isinstance(vv,list) and (lkk.endswith("_rows") or lkk.endswith("rows") or lkk=="rows"):
+                    add(vv)
     return out
 
 def explanation(r):
@@ -55,6 +70,12 @@ def main():
     if not rp.exists(): raise SystemExit(f"Missing {rp}")
     report=load(rp)
     rr=rows(report)
+    # DomainInspector V1.3.1 stores correlation rows in report.json; if no
+    # supported row collection is present, fail closed rather than reporting
+    # a misleading zero-unresolved result.
+    expected=sum(int(x.get("Requests",0) or 0) for x in ([report.get("summary")] if isinstance(report.get("summary"),dict) else (report.get("summary") or [])))
+    if expected and not rr:
+        raise SystemExit(f"Report says {expected} request(s), but no correlation row collection was found. Refusing false zero.")
     unresolved=[]
     for i,r in enumerate(rr):
         v=str(r.get("Verdict",""))
@@ -83,7 +104,7 @@ def main():
     counts={}
     for x in unresolved: counts[x["verdict"]]=counts.get(x["verdict"],0)+1
     out={
-      "schema":"machineobserver.evidence-resolver.v0.1",
+      "schema":"machineobserver.evidence-resolver.v0.1.1",
       "mode":"OFFLINE_PASSIVE_ANALYSIS",
       "session":str(d),
       "source":str(rp),
