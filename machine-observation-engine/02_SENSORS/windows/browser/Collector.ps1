@@ -16,6 +16,10 @@ function Get-HostClass {
         'hif-leim.deepseek.com'  { return 'hif-poller' }
         'hif-dliq.deepseek.com'  { return 'hif-poller' }
         'hif-test.deepseek.com'  { return 'hif-poller-test' }
+        'apmplus.volces.com'     { return 'volc-apm' }
+        'gator.volces.com'       { return 'volc-apm' }
+        '*.volces.com'           { return 'volc-apm' }
+        '*.volccdn.com'          { return 'volc-cdn' }
         '*.deepseek.com'         { return 'deepseek-other' }
         '*.cloudfront.net'       { return 'cloudfront' }
         default                  { return 'other' }
@@ -111,6 +115,7 @@ try {
 
                 $record = [ordered]@{
                     timestamp = (Get-Date).ToString("o")
+                    sensor = "browser-cdp"
                     method = if ($req) { $req.Method } else { "-" }
                     class = $class
                     url = $resp.url
