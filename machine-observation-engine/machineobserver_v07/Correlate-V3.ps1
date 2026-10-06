@@ -64,6 +64,9 @@ function Invoke-Correlate {
             OwnerName   = $ownerName
             LocalPort   = $localPort
             Candidates  = $candidates.Count
+            EvidenceClass = $r.evidenceClass
+            PayloadKind   = $r.payloadKind
+            AppJson       = $r.appJson
         }
     }
 
