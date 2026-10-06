@@ -1,9 +1,8 @@
-from common import Finding,rows,verdict
-def run(report):
-    rs=rows(report); gaps=sum(verdict(r) in ("SENSOR_GAP","PROTOCOL_GAP","NO_SOCKET") for r in rs)
-    ideas=[]
-    if gaps: ideas.append("Improve passive coverage for unresolved protocol/sensor gaps.")
-    if report.get("exactRequestSocketProof") is False: ideas.append("Preserve family-level attribution; do not invent request-to-socket identity.")
-    p=report.get("pageState") or {}; a=p.get("after") or {}
-    if a.get("validationState","UNKNOWN")=="UNKNOWN": ideas.append("Observe a user-driven state transition structurally without collecting entered values.")
-    return [Finding("Explorer","Next measurements selected from unresolved evidence.","HYPOTHESIS",["current report"],[],{"measurementPlan":ideas})]
+from common import *
+def run(d):
+ o=obs(d); plan=[]
+ if not o.get("pageStateAvailable",False):plan.append("Run a V1.2+ isolated session to add before/after structural page-state evidence.")
+ if total(d,"SENSOR_GAP")+total(d,"PROTOCOL_GAP"):plan.append("Improve passive coverage for unresolved sensor/protocol gaps.")
+ if not o.get("exactRequestSocketProof",False):plan.append("Keep family-level attribution; do not manufacture request-to-socket identity.")
+ plan.append("Compare only user-driven, non-secret state transitions when additional evidence is needed.")
+ return [Finding("Explorer","Proposed next measurements target unresolved evidence without collecting secrets.","HYPOTHESIS",["unresolved","observations"],[],{"measurementPlan":plan})]
