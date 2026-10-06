@@ -4,18 +4,18 @@ function ConvertTo-RedactedUrl {
  try { $u=[Uri]$Url; $b=[UriBuilder]::new($u); $b.Query=""; $b.Fragment=""; return $b.Uri.AbsoluteUri } catch { return $Url }
 }
 function Invoke-CdpCapture {
- [CmdletBinding()]param([Parameter(Mandatory)][int]$Port,[Parameter(Mandatory)][string]$OutFile,[Parameter(Mandatory)][string]$Label,[int]$Seconds=60)
+ [CmdletBinding()]param([Parameter(Mandatory)][int]$Port,[Parameter(Mandatory)][string]$OutFile,[Parameter(Mandatory)][string]$Label,[int]$Seconds=60,[string]$TargetHost="")
  if(Test-Path $OutFile){Remove-Item $OutFile -Force}
  $deadline=(Get-Date).AddSeconds($Seconds); $page=$null
  while((-not $page) -and ((Get-Date) -lt $deadline)){
-  try { $targets=@(Invoke-RestMethod ("http://127.0.0.1:"+$Port+"/json/list") -TimeoutSec 2); $page=$targets|Where-Object {$_.type -eq "page"}|Select-Object -First 1 } catch {}
+  try { $targets=@(Invoke-RestMethod ("http://127.0.0.1:"+$Port+"/json/list") -TimeoutSec 2); $pages=@($targets|Where-Object {$_.type -eq "page"}); if($TargetHost){$page=$pages|Where-Object {try{([Uri]([string]$_.url)).DnsSafeHost -eq $TargetHost}catch{$false}}|Select-Object -First 1}else{$page=$pages|Select-Object -First 1} } catch {}
   if(-not $page){Start-Sleep -Milliseconds 250}
  }
  if(-not $page){throw "[$Label] no CDP page target on $Port"}
  $ws=[Net.WebSockets.ClientWebSocket]::new()
  $connectCts=[Threading.CancellationTokenSource]::new()
  $connectCts.CancelAfter(5000)
- try { $ws.ConnectAsync([Uri]$page.webSocketDebuggerUrl,$connectCts.Token).GetAwaiter().GetResult() } finally { $connectCts.Dispose() }
+ try { $wsUrl=[string]$page.webSocketDebuggerUrl; if([string]::IsNullOrWhiteSpace($wsUrl)){throw "[$Label] selected target has no WebSocket debugger URL"}; $ws.ConnectAsync(([Uri]$wsUrl),$connectCts.Token).GetAwaiter().GetResult() } finally { $connectCts.Dispose() }
  $enableBytes=[Text.Encoding]::UTF8.GetBytes((@{id=1;method="Network.enable"}|ConvertTo-Json -Compress))
  $null=$ws.SendAsync([ArraySegment[byte]]::new($enableBytes),[Net.WebSockets.WebSocketMessageType]::Text,$true,[Threading.CancellationToken]::None).GetAwaiter().GetResult()
  Write-Host "[$Label] attached target=$($page.id) $($page.url)" -ForegroundColor Green
