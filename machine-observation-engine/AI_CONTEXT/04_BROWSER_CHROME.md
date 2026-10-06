@@ -1,32 +1,30 @@
 # Chrome / CDP Sensor
-Code:
-02_SENSORS/windows/browser/Collector.ps1
+Code: 02_SENSORS/windows/browser/Collector.ps1
+Analyzer: 02_SENSORS/windows/browser/Analyzer.ps1
 
-Purpose:
-observe browser-owned application-layer request/response facts.
+Purpose: browser application-layer evidence with Windows PID correlation when directly observable.
 
-Fields include:
-timestamp, sensor=browser-cdp, method, class, URL, host, path, status, MIME, remote IP/port, protocol, cache flags, TLS metadata.
+Raw evidence is never deleted to remove duplicates.
 
-Role classes:
-api-main
-api-main-dev
-static-cdn
-hif-poller
-hif-poller-test
-deepseek-other
-volc-apm
-volc-cdn
-cloudfront
-other
+Each response gets resourceKey:
+method | URL | HTTP status | remote IP | remote port
 
-Classifier rule:
-specific hostname cases return immediately before broad wildcard cases.
+Analyzer reports:
+- raw observations
+- unique resources
+- duplicate count
+- raw count by class
+- unique count by class
+- host/IP/PID evidence
+- unique URLs
+- TLS summary
 
-Current observed count:
-volc-apm 17
-static-cdn 13
-api-main 7
-other 4
-volc-cdn 2
-total 43.
+Missing PID remains UNKNOWN.
+
+Fields:
+timestamp, sensor=browser-cdp, method, class, url, host, path, status, mimeType, remoteIP, remotePort, chromePID, procName, resourceKey, protocol, cache flags, TLS.
+
+Roles:
+api-main, api-main-dev, static-cdn, hif-poller, hif-poller-test, deepseek-other, volc-apm, volc-cdn, cloudfront, fingerprint, turnstile, apple-auth, other.
+
+Classifier uses immediate return for specific/broad wildcard rules.
