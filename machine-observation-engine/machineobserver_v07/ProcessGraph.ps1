@@ -1,65 +1,22 @@
-# Builds a PID -> { Name, Path, ParentPID, RootPID } map for Chrome and Edge.
-# The "family" is determined by walking up to the topmost ancestor whose
-# executable matches the browser.
-
-function Get-ProcessGraph {
-    param(
-        [string]$BrowserName,          # 'chrome' or 'msedge'
-        [string]$BrowserExePath        # full path to the browser executable
-    )
-
-    $all = @{}
-    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | ForEach-Object {
-        $all[[int]$_.ProcessId] = [pscustomobject]@{
-            PID        = [int]$_.ProcessId
-            ParentPID  = [int]$_.ParentProcessId
-            Name       = $_.Name
-            ExePath    = $_.ExecutablePath
-            CommandLine= $_.CommandLine
-        }
-    }
-
-    # Root = the topmost ancestor whose name matches
-    function Get-RootPID {
-        param([int]$Pid)
-        $cur = $Pid
-        $seen = @{}
-        while ($cur -gt 4 -and -not $seen.ContainsKey($cur)) {
-            $seen[$cur] = $true
-            $p = $all[$cur]
-            if (-not $p) { break }
-            if ($p.Name -ne $BrowserName) { break }
-            $parent = $all[$p.ParentPID]
-            if (-not $parent -or $parent.Name -ne $BrowserName) {
-                return $cur
-            }
-            $cur = $p.ParentPID
-        }
-        return $cur
-    }
-
-    # Index every process whose name equals the browser
-    $members = @{}
-    foreach ($kv in $all.GetEnumerator()) {
-        $p = $kv.Value
-        if ($p.Name -ne $BrowserName) { continue }
-
-        $rootPid = Get-RootPID -Pid $p.PID
-        $role    = "worker"
-        if ($p.PID -eq $rootPid) { $role = "root" }
-        elseif ($p.CommandLine -match '--utility-sub-type=network\.mojom\.NetworkService') { $role = "network-service" }
-        elseif ($p.CommandLine -match '--type=renderer')  { $role = "renderer"  }
-        elseif ($p.CommandLine -match '--type=gpu')       { $role = "gpu"       }
-        elseif ($p.CommandLine -match '--type=utility')   { $role = "utility"   }
-
-        $members[$p.PID] = [pscustomobject]@{
-            PID       = $p.PID
-            Name      = $p.Name
-            Role      = $role
-            RootPID   = $rootPid
-            Family    = $BrowserName
-        }
-    }
-
-    return $members
+# MachineObserver V3.2 - controlled Chromium process-tree discovery.
+# Identity anchor: executable + debug port + root command line without --type=.
+function Get-ProcessRole { param($Process,[int]$RootPID)
+ if([int]$Process.ProcessId -eq $RootPID){return "root"}; $c=[string]$Process.CommandLine
+ if($c -match '--type=utility' -and $c -match 'network\.mojom\.NetworkService'){return "network-service"}
+ if($c -match '--type=renderer'){return "renderer"}; if($c -match '--type=gpu-process'){return "gpu"}
+ if($c -match '--type=utility'){return "utility"}; if($c -match 'crashpad'){return "crashpad"}; return "other"
 }
+function Get-ControlledProcessGraph { [CmdletBinding()] param([Parameter(Mandatory)][string]$BrowserName,[Parameter(Mandatory)][int]$DebugPort,[string]$BrowserExePath)
+ $expected=[IO.Path]::GetFileNameWithoutExtension($BrowserName).ToLowerInvariant(); $allRows=@(Get-CimInstance Win32_Process -ErrorAction Stop); $byPid=@{}
+ foreach($p in $allRows){$byPid[[int]$p.ProcessId]=$p}
+ $roots=@($allRows|Where-Object{$n=[IO.Path]::GetFileNameWithoutExtension([string]$_.Name).ToLowerInvariant();$c=[string]$_.CommandLine;$n -eq $expected -and $c -match "(?i)--remote-debugging-port(?:=|\s+)$DebugPort(?:\s|$)" -and $c -notmatch '(?i)(?:^|\s)--type='})
+ if($BrowserExePath){$want=[IO.Path]::GetFullPath($BrowserExePath).TrimEnd('\').ToLowerInvariant();$pm=@($roots|Where-Object{$_.ExecutablePath -and ([IO.Path]::GetFullPath([string]$_.ExecutablePath).TrimEnd('\').ToLowerInvariant() -eq $want)});if($pm.Count){$roots=$pm}}
+ if($roots.Count -eq 0){throw "No controlled $expected root found on debug port $DebugPort."};if($roots.Count -gt 1){throw "Ambiguous controlled roots: $($roots.ProcessId -join ', ')"}
+ $root=$roots[0];$rootPid=[int]$root.ProcessId;$rc=if($root.CreationDate){([datetime]$root.CreationDate).ToUniversalTime().ToString("o")}else{$null};$ri="$rootPid|$rc"
+ $set=[Collections.Generic.HashSet[int]]::new();[void]$set.Add($rootPid);$q=[Collections.Queue]::new();$q.Enqueue($rootPid)
+ while($q.Count){$par=[int]$q.Dequeue();foreach($ch in $allRows){if([int]$ch.ParentProcessId -eq $par -and -not $set.Contains([int]$ch.ProcessId)){[void]$set.Add([int]$ch.ProcessId);$q.Enqueue([int]$ch.ProcessId)}}}
+ $members=@{};foreach($id in $set){$p=$byPid[$id];if(-not $p){continue};$cr=if($p.CreationDate){([datetime]$p.CreationDate).ToUniversalTime().ToString("o")}else{$null}
+  $members[$id]=[pscustomobject]@{PID=$id;ParentPID=[int]$p.ParentProcessId;ProcessInstanceId="$id|$cr";Name=[string]$p.Name;Role=Get-ProcessRole $p $rootPid;RootPID=$rootPid;RootProcessInstanceId=$ri;Family=$expected;DebugPort=$DebugPort;TreeClass="CONTROLLED"}}
+ [pscustomobject]@{Family=$expected;DebugPort=$DebugPort;RootPID=$rootPid;RootProcessInstanceId=$ri;Members=$members}
+}
+function Get-ProcessGraph { param([string]$BrowserName,[string]$BrowserExePath,[int]$DebugPort);if(-not $DebugPort){throw "V3.2 requires -DebugPort."};(Get-ControlledProcessGraph $BrowserName $DebugPort $BrowserExePath).Members }
