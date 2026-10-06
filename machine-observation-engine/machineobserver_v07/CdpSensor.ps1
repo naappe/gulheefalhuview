@@ -144,8 +144,30 @@ function Invoke-CdpCapture {
                     mimeType   = $resp.mimeType
                     remoteIP   = $ip
                     remotePort = $resp.remotePort
+                    protocol   = $resp.protocol
+                    requestId  = $p.requestId
+                    resourceType = $p.type
+                    evidenceClass = "OBSERVED_BROWSER"
+                    payloadKind = if ($resp.mimeType -match 'json') { "JSON" } else { "UNKNOWN" }
+                    appJson     = $null
                 }
-                ($rec | ConvertTo-Json -Compress) | Add-Content -Path $OutFile -Encoding UTF8
+                # Optional bounded application-JSON observation.
+                # Body retrieval is attempted only for JSON responses and is never required
+                # for network attribution. Undocumented fields remain raw evidence.
+                if ($rec.payloadKind -eq "JSON" -and $p.requestId) {
+                    try {
+                        $cmdId = 900000 + $eventCount
+                        $bodyCmd = @{ id = $cmdId; method = "Network.getResponseBody"; params = @{ requestId = $p.requestId } } | ConvertTo-Json -Compress -Depth 5
+                        $bodyBytes = [Text.Encoding]::UTF8.GetBytes($bodyCmd)
+                        $bodySeg = [ArraySegment[byte]]::new($bodyBytes)
+                        $conn.Ws.SendAsync($bodySeg, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $conn.Cts.Token).Wait()
+                        # Body response is asynchronous; do not block or steal the normal event stream here.
+                        $rec.appJson = [ordered]@{ state = "BODY_REQUESTED"; interpretation = "UNKNOWN" }
+                    } catch {
+                        $rec.appJson = [ordered]@{ state = "UNAVAILABLE"; interpretation = "UNKNOWN" }
+                    }
+                }
+                ($rec | ConvertTo-Json -Compress -Depth 8) | Add-Content -Path $OutFile -Encoding UTF8
                 $eventCount++
                 Write-Host ("[{0}] {1,3} {2,-16} {3}" -f $Label, $resp.status, $ip, $resp.url) -ForegroundColor White
             }
