@@ -1,38 +1,29 @@
 # Verified State — 2026-10-06
-Static artifact:
+
+## Artifact integrity
 main.6fca03582d.js
-size 1510389 bytes
-SHA256 C1A25CBB78E344205463CF54D673C1E0F01DB007697B92D84FB8131C6FEAB7DE
+size: 1510389 bytes
+SHA256: C1A25CBB78E344205463CF54D673C1E0F01DB007697B92D84FB8131C6FEAB7DE
 Two independent downloads matched.
 
-Chrome/CDP:
-volc-apm 17
-static-cdn 13
-api-main 7
-other 4
-volc-cdn 2
-total 43
-volc-apm + volc-cdn = 19/43 = ~44.2%.
+## Browser + socket correlation
+Latest browser capture: 10 response observations.
 
-PID 17116 supported for:
-chat.deepseek.com
-fe-static.deepseek.com
-gator.volces.com
-apmplus.volces.com
-lf3-data.volccdn.com
-fp-it-acc.portal101.cn
+Windows socket snapshot independently observed PID 17116 on the same remote endpoint/time window as:
+- fe-static.deepseek.com browser responses
+- gator.volces.com browser responses
 
-PID UNKNOWN in socket snapshot:
-apm.volccdn.com
-challenges.cloudflare.com
-appleid.cdn-apple.com
+Evidence rule:
+browser URL/path/status = OBSERVED by CDP
+PID/IP/port = OBSERVED by Windows socket sensor
+cross-sensor join = CORRELATED
 
-Static bundle references:
-hif-leim.deepseek.com/query
-hif-dliq.deepseek.com/query
-/api/v0/chat/completion
-/api/v0/chat/create_pow_challenge
-/api/v0/index/query
-/api/v0/index/prepare
+A browser response whose socket PID was not observed remains PID UNKNOWN.
 
-Static reference != runtime contact.
+Latest DeepSeek static observations included icon, Web-TTS JavaScript, Opus decoder JavaScript and Opus WASM. All returned HTTP 200.
+
+No main.6fca03582d.js response was present in this latest capture.
+
+Cached responses may report encodedLength=0. This means no encoded network transfer for that observation; it does not establish a zero-byte resource.
+
+Static artifact endpoint references remain distinct from runtime contact evidence.
