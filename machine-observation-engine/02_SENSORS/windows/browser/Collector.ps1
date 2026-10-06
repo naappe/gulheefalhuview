@@ -22,6 +22,9 @@ function Get-HostClass {
         '*.volccdn.com'          { return 'volc-cdn' }
         '*.deepseek.com'         { return 'deepseek-other' }
         '*.cloudfront.net'       { return 'cloudfront' }
+        '*.cdn-apple.com'          { return 'apple-auth' }
+        '*.cloudflare.com'         { return 'turnstile' }
+        '*.portal101.cn'           { return 'fingerprint' }
         default                  { return 'other' }
     }
 }
