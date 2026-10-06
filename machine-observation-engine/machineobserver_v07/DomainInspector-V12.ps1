@@ -27,7 +27,24 @@ foreach($f in $deps){
 
 function FreePort{$l=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0);$l.Start();try{([Net.IPEndPoint]$l.LocalEndpoint).Port}finally{$l.Stop()}}
 function WaitCdp([int]$p){$e=(Get-Date).AddSeconds(20);while((Get-Date)-lt $e){try{$null=Invoke-RestMethod ("http://127.0.0.1:"+$p+"/json/version") -TimeoutSec 1;return $true}catch{};Start-Sleep -Milliseconds 200};$false}
-function WaitTarget([int]$p){$e=(Get-Date).AddSeconds(20);while((Get-Date)-lt $e){try{foreach($t in @(Invoke-RestMethod ("http://127.0.0.1:"+$p+"/json/list") -TimeoutSec 1)){if($t.type -ne "page"){continue};try{$h=([Uri]$t.url).DnsSafeHost.ToLowerInvariant()}catch{continue};if($h -eq $targetHost){return $true}}}catch{};Start-Sleep -Milliseconds 200};$false}
+function WaitTarget([int]$p){
+ $e=(Get-Date).AddSeconds(60);$last=@()
+ while((Get-Date)-lt $e){
+  try{
+   $last=@(Invoke-RestMethod ("http://127.0.0.1:"+$p+"/json/list") -TimeoutSec 2)
+   foreach($t in $last){
+    if(([string]$t.type) -ne "page"){continue}
+    $targetUrl=[string]$t.url
+    try{$tu=[Uri]$targetUrl;if(-not $tu.IsAbsoluteUri){continue};$h=$tu.DnsSafeHost.ToLowerInvariant()}catch{continue}
+    if([string]::Equals($h,$targetHost,[StringComparison]::OrdinalIgnoreCase)){return $true}
+   }
+  }catch{}
+  Start-Sleep -Milliseconds 250
+ }
+ Write-Warning ("WaitTarget timeout. Requested host: "+$targetHost)
+ foreach($t in $last){if(([string]$t.type) -eq "page"){Write-Warning ("Observed page target: "+[string]$t.url)}}
+ return $false
+}
 function ReloadPage([int]$p){
  $page=$null;foreach($t in @(Invoke-RestMethod ("http://127.0.0.1:"+$p+"/json/list") -TimeoutSec 2)){if($t.type -ne "page"){continue};try{$h=([Uri]$t.url).DnsSafeHost.ToLowerInvariant()}catch{continue};if($h -eq $targetHost){$page=$t;break}}
  if(-not $page){throw "Target page disappeared"}
