@@ -29,6 +29,14 @@ function Get-HostClass {
     }
 }
 
+function Get-ProcName {
+    param([int]$ProcessId)
+    if ($ProcessId -le 4) { return '(kernel/unknown)' }
+    $proc = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if ($proc) { return $proc.ProcessName }
+    return '(exited)'
+}
+
 Write-Host "[1/6] Starting Chrome on port $Port ..." -ForegroundColor Cyan
 Start-Process $Chrome -ArgumentList @(
     "--remote-debugging-port=$Port",
@@ -81,6 +89,7 @@ $buffer = New-Object byte[] 1048576
 $inflight = @{}
 $counter = 0
 $classCounts = @{}
+$pidCache = @{}
 
 try {
     while ($ws.State -eq "Open") {
@@ -109,6 +118,16 @@ try {
                 $path = try { ([Uri]$resp.url).AbsolutePath } catch { "-" }
                 $class = [string](Get-HostClass -HostName $hostName)
                 $ip = if ($resp.remoteIPAddress) { [string]$resp.remoteIPAddress } else { "-" }
+                $pidForIp = $null
+                if ($ip -ne "-") {
+                    if (-not $pidCache.ContainsKey($ip)) {
+                        $conn = Get-NetTCPConnection -RemoteAddress $ip -State Established -ErrorAction SilentlyContinue |
+                                Sort-Object CreationTime -Descending | Select-Object -First 1
+                        $pidCache[$ip] = if ($conn) { $conn.OwningProcess } else { $null }
+                    }
+                    $pidForIp = $pidCache[$ip]
+                }
+                $procName = if ($pidForIp) { Get-ProcName -ProcessId $pidForIp } else { "(unknown)" }
                 $sec = $resp.securityDetails
 
                 Write-Host ("{0,-4} {1,-16} {2,-22} {3,-16} {4}" -f $resp.status,$class,$resp.mimeType,$ip,$resp.url)
@@ -128,6 +147,9 @@ try {
                     mimeType = $resp.mimeType
                     remoteIP = $ip
                     remotePort = $resp.remotePort
+                    chromePID = $pidForIp
+                    procName = $procName
+                    resourceKey = ("{0}|{1}|{2}|{3}|{4}" -f (if ($req) { $req.Method } else { "-" }), $resp.url, $resp.status, $ip, $resp.remotePort)
                     protocol = $resp.protocol
                     fromCache = $resp.fromDiskCache
                     fromSW = $resp.fromServiceWorker
