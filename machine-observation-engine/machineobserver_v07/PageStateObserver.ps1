@@ -1,4 +1,4 @@
-# MachineObserver PageStateObserver V0.2
+# MachineObserver PageStateObserver V0.2.1
 # Read-only structural state. No input values, cookies, headers, bodies, or storage values.
 function Get-PageState {
  [CmdletBinding()]param(
@@ -48,7 +48,8 @@ function Get-PageState {
     do{$res=$ws.ReceiveAsync([ArraySegment[byte]]::new($buf),[Threading.CancellationToken]::None).GetAwaiter().GetResult();if($res.MessageType -eq [Net.WebSockets.WebSocketMessageType]::Close){throw "CDP socket closed"};if($res.Count){$ms.Write($buf,0,$res.Count)}}while(-not $res.EndOfMessage)
     $obj=([Text.Encoding]::UTF8.GetString($ms.ToArray())|ConvertFrom-Json)
     if($obj.id -ne 8101){continue}
-    if($obj.error){throw ("Runtime.evaluate failed: "+($obj.error|ConvertTo-Json -Compress))}
+    $errorProp=$obj.PSObject.Properties["error"]
+    if($null -ne $errorProp -and $null -ne $errorProp.Value){throw ("Runtime.evaluate failed: "+($errorProp.Value|ConvertTo-Json -Compress))}
     $s=([string]$obj.result.result.value|ConvertFrom-Json)
     return [pscustomobject][ordered]@{timestamp=(Get-Date).ToUniversalTime().ToString("o");targetId=$resolvedId;targetHost=$TargetHost;url=[string]$s.url;readyState=[string]$s.readyState;formCount=[int]$s.formCount;inputCount=[int]$s.inputCount;passwordFieldPresent=[bool]$s.passwordFieldPresent;submitControlPresent=[bool]$s.submitControlPresent;inputValuesCaptured=$false;cookieDataCaptured=$false;storageValuesCaptured=$false;stateClassification="OBSERVED_PAGE_STRUCTURE";validationState="UNKNOWN"}
    }finally{$ms.Dispose()}
