@@ -998,3 +998,1779 @@ def tls_probe(
 
         context = (
             ssl.create_default_context()
+        )
+
+
+        with socket.create_connection(
+            (
+                ip,
+                port
+            ),
+            timeout=PROBE_TIMEOUT
+        ) as raw:
+
+
+            with context.wrap_socket(
+                raw,
+                server_hostname=server_name
+            ) as tls_socket:
+
+
+                certificate = (
+                    tls_socket.getpeercert()
+                )
+
+
+                der = (
+                    tls_socket.getpeercert(
+                        binary_form=True
+                    )
+                )
+
+
+        result = {
+
+            "subject":
+                certificate.get(
+                    "subject"
+                ),
+
+            "issuer":
+                certificate.get(
+                    "issuer"
+                ),
+
+            "subjectAltName":
+                certificate.get(
+                    "subjectAltName"
+                ),
+
+            "serialNumber":
+                certificate.get(
+                    "serialNumber"
+                ),
+
+            "notBefore":
+                certificate.get(
+                    "notBefore"
+                ),
+
+            "notAfter":
+                certificate.get(
+                    "notAfter"
+                )
+        }
+
+
+        if der:
+
+            result[
+                "sha256"
+            ] = hashlib.sha256(
+                der
+            ).hexdigest()
+
+
+        db_execute(
+            """
+            INSERT INTO probes
+            (
+                session_id,
+                observed_at,
+                probe_type,
+                remote_ip,
+                remote_port,
+                hostname_candidate,
+                result,
+                source
+            )
+            VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                SESSION_ID,
+                utc_now(),
+                "TLS_CERTIFICATE",
+                ip,
+                port,
+                hostname,
+                json.dumps(
+                    result,
+                    default=str
+                ),
+                "ACTIVE_PROBE"
+            )
+        )
+
+
+        print(
+            "PROBE TLS   "
+            f"{ip}:{port} "
+            f"SNI={server_name}"
+        )
+
+
+    except Exception:
+
+        pass
+
+
+# ============================================================
+# HTTP ACTIVE PROBE
+# ============================================================
+
+def http_probe(
+    ip,
+    port,
+    hostname
+):
+
+    if not ACTIVE_PROBES:
+        return
+
+    if not HTTP_PROBE_ENABLED:
+        return
+
+    if port not in (
+        80,
+        443
+    ):
+        return
+
+    if not safe_for_active_probe(
+        ip
+    ):
+        return
+
+
+    key = (
+        ip,
+        port,
+        hostname
+    )
+
+
+    with probe_lock:
+
+        if key in http_probed:
+            return
+
+        if (
+            len(http_probed)
+            >= MAX_HTTP_PROBES
+        ):
+            return
+
+        http_probed.add(
+            key
+        )
+
+
+    host = (
+        hostname
+        if hostname
+        else ip
+    )
+
+
+    try:
+
+        if port == 443:
+
+            context = (
+                ssl.create_default_context()
+            )
+
+            connection = (
+                http.client.HTTPSConnection(
+                    ip,
+                    port,
+                    timeout=PROBE_TIMEOUT,
+                    context=context
+                )
+            )
+
+        else:
+
+            connection = (
+                http.client.HTTPConnection(
+                    ip,
+                    port,
+                    timeout=PROBE_TIMEOUT
+                )
+            )
+
+
+        connection.request(
+            "HEAD",
+            "/",
+            headers={
+                "Host": host,
+                "User-Agent":
+                    "MachineObserver/0.6.1"
+            }
+        )
+
+
+        response = (
+            connection.getresponse()
+        )
+
+
+        result = {
+
+            "status":
+                response.status,
+
+            "reason":
+                response.reason,
+
+            "headers":
+                dict(
+                    response.getheaders()
+                )
+        }
+
+
+        db_execute(
+            """
+            INSERT INTO probes
+            (
+                session_id,
+                observed_at,
+                probe_type,
+                remote_ip,
+                remote_port,
+                hostname_candidate,
+                result,
+                source
+            )
+            VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                SESSION_ID,
+                utc_now(),
+                "HTTP_HEAD",
+                ip,
+                port,
+                hostname,
+                json.dumps(
+                    result,
+                    default=str
+                ),
+                "ACTIVE_PROBE"
+            )
+        )
+
+
+        print(
+            "PROBE HTTP  "
+            f"{host} "
+            f"{ip}:{port} "
+            f"status={response.status}"
+        )
+
+
+        connection.close()
+
+
+    except Exception:
+
+        pass
+
+
+# ============================================================
+# START ACTIVE PROBES
+# ============================================================
+
+def start_probes(
+    ip,
+    port,
+    names
+):
+
+    if not ACTIVE_PROBES:
+        return
+
+
+    # Only use hostname when exactly one
+    # forward-DNS candidate exists.
+
+    hostname = None
+
+
+    if len(names) == 1:
+
+        hostname = names[0]
+
+
+    threading.Thread(
+        target=tls_probe,
+        args=(
+            ip,
+            port,
+            hostname
+        ),
+        daemon=True
+    ).start()
+
+
+    threading.Thread(
+        target=http_probe,
+        args=(
+            ip,
+            port,
+            hostname
+        ),
+        daemon=True
+    ).start()
+
+
+# ============================================================
+# FLOW KEY
+# ============================================================
+
+def connection_key(
+    connection
+):
+
+    return (
+        "TCP",
+        connection.pid,
+        connection.laddr.ip,
+        connection.laddr.port,
+        connection.raddr.ip,
+        connection.raddr.port
+    )
+
+
+# ============================================================
+# CREATE FLOW
+# ============================================================
+
+def create_flow(
+    connection,
+    baseline=False
+):
+
+    pid = connection.pid
+
+    local_ip = (
+        connection.laddr.ip
+    )
+
+    local_port = (
+        connection.laddr.port
+    )
+
+    remote_ip = (
+        connection.raddr.ip
+    )
+
+    remote_port = (
+        connection.raddr.port
+    )
+
+
+    key = connection_key(
+        connection
+    )
+
+
+    process = get_process_info(
+        pid
+    )
+
+
+    names = sorted(
+        dns_map.get(
+            remote_ip,
+            set()
+        )
+    )
+
+
+    forward_dns = (
+        len(names) > 0
+    )
+
+
+    reverse_name, reverse_ok = (
+        get_ptr_without_blocking(
+            remote_ip
+        )
+    )
+
+
+    score = evidence_score(
+        process[
+            "observed"
+        ],
+        True,
+        forward_dns
+    )
+
+
+    flow_id = str(
+        uuid.uuid4()
+    )
+
+
+    timestamp = utc_now()
+
+
+    status = (
+        "BASELINE"
+        if baseline
+        else "OPEN"
+    )
+
+
+    cursor = db_execute(
+        """
+        INSERT INTO flows
+        (
+            flow_id,
+            session_id,
+            first_seen,
+            last_seen,
+            status,
+            close_semantics,
+            protocol,
+            pid,
+            process,
+            cmdline,
+            local_ip,
+            local_port,
+            remote_ip,
+            remote_port,
+            forward_names,
+            reverse_name,
+            process_observed,
+            socket_observed,
+            forward_dns_observed,
+            reverse_dns_observed,
+            evidence_confidence
+        )
+        VALUES
+        (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+        """,
+        (
+            flow_id,
+            SESSION_ID,
+            timestamp,
+            timestamp,
+            status,
+            None,
+            "TCP",
+            pid,
+            process[
+                "name"
+            ],
+            process[
+                "cmdline"
+            ],
+            local_ip,
+            local_port,
+            remote_ip,
+            remote_port,
+            (
+                " | ".join(names)
+                if names
+                else None
+            ),
+            reverse_name,
+            int(
+                process[
+                    "observed"
+                ]
+            ),
+            1,
+            int(
+                forward_dns
+            ),
+            int(
+                reverse_ok
+            ),
+            score
+        )
+    )
+
+
+    active_flows[
+        key
+    ] = {
+
+        "db_id":
+            cursor.lastrowid,
+
+        "flow_id":
+            flow_id,
+
+        "process":
+            process[
+                "name"
+            ],
+
+        "names":
+            names,
+
+        "baseline":
+            baseline
+    }
+
+
+    if names:
+
+        identity = (
+            " | ".join(names)
+        )
+
+        source = (
+            "FORWARD-DNS"
+        )
+
+
+    elif reverse_name:
+
+        identity = reverse_name
+
+        source = "PTR"
+
+
+    else:
+
+        identity = (
+            "[unknown]"
+        )
+
+        source = "NONE"
+
+
+    print(
+        f"{status:<9} "
+        f"{timestamp}  "
+        f"{process['name']} "
+        f"[{pid}]  "
+        f"{identity}  "
+        f"{local_ip}:{local_port} -> "
+        f"{remote_ip}:{remote_port}  "
+        f"dns={source} "
+        f"evidence={score:.2f}"
+    )
+
+
+    # Don't generate probes for connections
+    # that already existed when observer started.
+
+    if not baseline:
+
+        start_probes(
+            remote_ip,
+            remote_port,
+            names
+        )
+
+
+# ============================================================
+# INITIAL BASELINE
+# ============================================================
+
+def establish_baseline():
+
+    print()
+    print(
+        "Establishing initial TCP baseline..."
+    )
+
+
+    try:
+
+        connections = (
+            psutil.net_connections(
+                kind="tcp"
+            )
+        )
+
+    except psutil.AccessDenied:
+
+        print()
+        print(
+            "Access denied."
+        )
+
+        print(
+            "Run PowerShell as Administrator."
+        )
+
+        return False
+
+
+    except Exception as error:
+
+        print(
+            "Baseline error:",
+            error
+        )
+
+        return False
+
+
+    count = 0
+
+
+    for connection in connections:
+
+        if (
+            connection.status
+            != psutil.CONN_ESTABLISHED
+        ):
+            continue
+
+
+        if not connection.raddr:
+            continue
+
+
+        if connection.pid is None:
+            continue
+
+
+        create_flow(
+            connection,
+            baseline=True
+        )
+
+        count += 1
+
+
+    print()
+
+    print(
+        f"Baseline established: "
+        f"{count} connection(s)"
+    )
+
+    print()
+
+    return True
+
+
+# ============================================================
+# LIVE TCP SENSOR
+# ============================================================
+
+def scan_tcp():
+
+    current = set()
+
+
+    try:
+
+        connections = (
+            psutil.net_connections(
+                kind="tcp"
+            )
+        )
+
+    except Exception as error:
+
+        print(
+            "TCP sensor error:",
+            error
+        )
+
+        return
+
+
+    for connection in connections:
+
+        if (
+            connection.status
+            != psutil.CONN_ESTABLISHED
+        ):
+            continue
+
+
+        if not connection.raddr:
+            continue
+
+
+        if connection.pid is None:
+            continue
+
+
+        key = connection_key(
+            connection
+        )
+
+
+        current.add(
+            key
+        )
+
+
+        if key not in active_flows:
+
+            create_flow(
+                connection,
+                baseline=False
+            )
+
+
+        else:
+
+            information = (
+                active_flows[
+                    key
+                ]
+            )
+
+
+            # Update PTR later if the
+            # background resolver completed.
+
+            remote_ip = key[4]
+
+            ptr = ptr_cache.get(
+                remote_ip
+            )
+
+
+            if ptr:
+
+                db_execute(
+                    """
+                    UPDATE flows
+
+                    SET
+                        last_seen=?,
+                        reverse_name=?,
+                        reverse_dns_observed=1
+
+                    WHERE id=?
+                    """,
+                    (
+                        utc_now(),
+                        ptr,
+                        information[
+                            "db_id"
+                        ]
+                    )
+                )
+
+            else:
+
+                db_execute(
+                    """
+                    UPDATE flows
+
+                    SET last_seen=?
+
+                    WHERE id=?
+                    """,
+                    (
+                        utc_now(),
+                        information[
+                            "db_id"
+                        ]
+                    )
+                )
+
+
+    disappeared = []
+
+
+    for key, information in list(
+        active_flows.items()
+    ):
+
+        if key in current:
+            continue
+
+
+        timestamp = utc_now()
+
+
+        db_execute(
+            """
+            UPDATE flows
+
+            SET
+                last_seen=?,
+                status='DISAPPEARED',
+                close_semantics=
+                    'SNAPSHOT_DISAPPEARANCE'
+
+            WHERE id=?
+            """,
+            (
+                timestamp,
+                information[
+                    "db_id"
+                ]
+            )
+        )
+
+
+        (
+            protocol,
+            pid,
+            local_ip,
+            local_port,
+            remote_ip,
+            remote_port
+        ) = key
+
+
+        print(
+            "DISAPPEAR "
+            f"{timestamp}  "
+            f"{information['process']} "
+            f"[{pid}]  "
+            f"{local_ip}:{local_port} -> "
+            f"{remote_ip}:{remote_port}"
+        )
+
+
+        disappeared.append(
+            key
+        )
+
+
+    for key in disappeared:
+
+        active_flows.pop(
+            key,
+            None
+        )
+
+
+# ============================================================
+# ACTIVITY CLASSIFIER
+# ============================================================
+
+def classify_activity(
+    process,
+    names,
+    remote_port
+):
+
+    process_lower = (
+        process
+        or ""
+    ).lower()
+
+
+    normalized_names = [
+
+        name.lower()
+
+        for name
+        in names
+    ]
+
+
+    joined = " ".join(
+        normalized_names
+    )
+
+
+    if process_lower == "adb.exe":
+
+        if remote_port == 5555:
+
+            return (
+                "Android / ADB",
+                "ADB remote-device communication",
+                0.95
+            )
+
+        return (
+            "Android / ADB",
+            "ADB communication",
+            0.85
+        )
+
+
+    if "tailscale" in process_lower:
+
+        return (
+            "Tailscale",
+            "Overlay-network communication",
+            0.90
+        )
+
+
+    if process_lower in (
+        "chrome.exe",
+        "msedge.exe",
+        "firefox.exe"
+    ):
+
+        if (
+            "chatgpt.com" in joined
+            or "openai.com" in joined
+            or "oaiusercontent.com" in joined
+        ):
+
+            return (
+                "ChatGPT / OpenAI",
+                "Browser network activity correlated "
+                "with OpenAI hostnames",
+                0.90
+            )
+
+
+        if (
+            "deepseek.com" in joined
+            or "deepseeksvc.com" in joined
+        ):
+
+            return (
+                "DeepSeek",
+                "Browser network activity correlated "
+                "with DeepSeek hostnames",
+                0.90
+            )
+
+
+        if "github.com" in joined:
+
+            return (
+                "GitHub",
+                "Browser network activity correlated "
+                "with GitHub hostnames",
+                0.90
+            )
+
+
+        if normalized_names:
+
+            return (
+                "Web browsing",
+                "Browser activity with "
+                "DNS correlation",
+                0.65
+            )
+
+
+        return (
+            "Web browsing",
+            "Browser activity with "
+            "unresolved hostname",
+            0.40
+        )
+
+
+    if process_lower in (
+        "powershell.exe",
+        "pwsh.exe"
+    ):
+
+        return (
+            "PowerShell",
+            "PowerShell-generated network activity",
+            0.80
+        )
+
+
+    if process_lower == "explorer.exe":
+
+        return (
+            "Windows Explorer",
+            "Windows shell network activity",
+            0.70
+        )
+
+
+    if process_lower == "svchost.exe":
+
+        return (
+            "Windows Service",
+            "Windows service-host network activity",
+            0.65
+        )
+
+
+    if (
+        process
+        and process != "unknown"
+    ):
+
+        return (
+            process,
+            "Application network activity",
+            0.60
+        )
+
+
+    return (
+        "Unknown",
+        "Unidentified network activity",
+        0.25
+    )
+
+
+# ============================================================
+# ACTIVITY ENGINE
+# ============================================================
+
+def build_activity_report():
+
+    with db_lock:
+
+        rows = db.execute(
+            """
+            SELECT
+                flow_id,
+                pid,
+                process,
+                remote_ip,
+                remote_port,
+                forward_names,
+                evidence_confidence
+
+            FROM flows
+
+            WHERE session_id=?
+
+            ORDER BY first_seen
+            """,
+            (
+                SESSION_ID,
+            )
+        ).fetchall()
+
+
+    activities = defaultdict(
+        lambda: {
+            "flows": [],
+            "processes": set(),
+            "pids": set(),
+            "hostnames": set(),
+            "remote_ips": set(),
+            "evidence": [],
+            "classification": []
+        }
+    )
+
+
+    for row in rows:
+
+        names = []
+
+
+        if row[
+            "forward_names"
+        ]:
+
+            names = [
+
+                item.strip()
+
+                for item
+                in row[
+                    "forward_names"
+                ].split("|")
+
+                if item.strip()
+            ]
+
+
+        (
+            category,
+            meaning,
+            class_score
+        ) = classify_activity(
+            row[
+                "process"
+            ],
+            names,
+            row[
+                "remote_port"
+            ]
+        )
+
+
+        key = (
+            category,
+            meaning
+        )
+
+
+        activity = (
+            activities[
+                key
+            ]
+        )
+
+
+        activity[
+            "flows"
+        ].append(
+            row[
+                "flow_id"
+            ]
+        )
+
+
+        if row[
+            "process"
+        ]:
+
+            activity[
+                "processes"
+            ].add(
+                row[
+                    "process"
+                ]
+            )
+
+
+        if row[
+            "pid"
+        ] is not None:
+
+            activity[
+                "pids"
+            ].add(
+                row[
+                    "pid"
+                ]
+            )
+
+
+        for hostname in names:
+
+            activity[
+                "hostnames"
+            ].add(
+                hostname
+            )
+
+
+        if row[
+            "remote_ip"
+        ]:
+
+            activity[
+                "remote_ips"
+            ].add(
+                row[
+                    "remote_ip"
+                ]
+            )
+
+
+        activity[
+            "evidence"
+        ].append(
+            row[
+                "evidence_confidence"
+            ]
+            or 0
+        )
+
+
+        activity[
+            "classification"
+        ].append(
+            class_score
+        )
+
+
+    ordered = sorted(
+        activities.items(),
+        key=lambda item:
+            len(
+                item[1][
+                    "flows"
+                ]
+            ),
+        reverse=True
+    )
+
+
+    generated = utc_now()
+
+
+    db_execute(
+        """
+        DELETE FROM activities
+        WHERE session_id=?
+        """,
+        (
+            SESSION_ID,
+        )
+    )
+
+
+    for (
+        category,
+        meaning
+    ), activity in ordered:
+
+
+        evidence_average = (
+            sum(
+                activity[
+                    "evidence"
+                ]
+            )
+            /
+            len(
+                activity[
+                    "evidence"
+                ]
+            )
+        )
+
+
+        classification_average = (
+            sum(
+                activity[
+                    "classification"
+                ]
+            )
+            /
+            len(
+                activity[
+                    "classification"
+                ]
+            )
+        )
+
+
+        pids = sorted(
+            activity[
+                "pids"
+            ]
+        )
+
+
+        representative_pid = (
+            pids[0]
+            if len(pids) == 1
+            else None
+        )
+
+
+        db_execute(
+            """
+            INSERT INTO activities
+            (
+                session_id,
+                generated_at,
+                category,
+                meaning,
+                process,
+                pid,
+                flow_count,
+                hostnames,
+                remote_ips,
+                evidence_confidence,
+                classification_confidence,
+                evidence_class
+            )
+            VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                SESSION_ID,
+                generated,
+                category,
+                meaning,
+                ", ".join(
+                    sorted(
+                        activity[
+                            "processes"
+                        ]
+                    )
+                ),
+                representative_pid,
+                len(
+                    activity[
+                        "flows"
+                    ]
+                ),
+                " | ".join(
+                    sorted(
+                        activity[
+                            "hostnames"
+                        ]
+                    )
+                ),
+                " | ".join(
+                    sorted(
+                        activity[
+                            "remote_ips"
+                        ]
+                    )
+                ),
+                round(
+                    evidence_average,
+                    2
+                ),
+                round(
+                    classification_average,
+                    2
+                ),
+                "INFERRED"
+            )
+        )
+
+
+    print()
+
+    print(
+        "=" * 72
+    )
+
+    print(
+        " WHAT IS THIS COMPUTER DOING?"
+    )
+
+    print(
+        "=" * 72
+    )
+
+
+    if not ordered:
+
+        print(
+            "No qualifying TCP activity observed."
+        )
+
+        print()
+
+        return
+
+
+    for (
+        category,
+        meaning
+    ), activity in ordered:
+
+
+        evidence_average = (
+            sum(
+                activity[
+                    "evidence"
+                ]
+            )
+            /
+            len(
+                activity[
+                    "evidence"
+                ]
+            )
+        )
+
+
+        classification_average = (
+            sum(
+                activity[
+                    "classification"
+                ]
+            )
+            /
+            len(
+                activity[
+                    "classification"
+                ]
+            )
+        )
+
+
+        print()
+
+        print(
+            f"[{category}]"
+        )
+
+
+        print(
+            f"  Meaning : {meaning}"
+        )
+
+
+        print(
+            "  Process : "
+            +
+            (
+                ", ".join(
+                    sorted(
+                        activity[
+                            "processes"
+                        ]
+                    )
+                )
+                or "[unknown]"
+            )
+        )
+
+
+        print(
+            f"  Flows   : "
+            f"{len(activity['flows'])}"
+        )
+
+
+        print(
+            f"  Evidence: "
+            f"{evidence_average:.2f}"
+        )
+
+
+        print(
+            f"  Inference: "
+            f"{classification_average:.2f}"
+        )
+
+
+        if activity[
+            "hostnames"
+        ]:
+
+            print(
+                "  Hosts   : "
+                +
+                ", ".join(
+                    sorted(
+                        activity[
+                            "hostnames"
+                        ]
+                    )[:8]
+                )
+            )
+
+
+        if activity[
+            "remote_ips"
+        ]:
+
+            print(
+                "  IPs     : "
+                +
+                ", ".join(
+                    sorted(
+                        activity[
+                            "remote_ips"
+                        ]
+                    )[:8]
+                )
+            )
+
+
+    print()
+
+    print(
+        "OBSERVED   = process/socket evidence"
+    )
+
+    print(
+        "CORRELATED = DNS-supported relationship"
+    )
+
+    print(
+        "INFERRED   = activity interpretation"
+    )
+
+    print(
+        "PROBED     = MachineObserver-generated traffic"
+    )
+
+    print(
+        "UNKNOWN    = insufficient evidence"
+    )
+
+    print()
+
+
+# ============================================================
+# SIGNAL HANDLING
+# ============================================================
+
+def stop_handler(
+    signum,
+    frame
+):
+
+    global running
+
+    running = False
+
+
+signal.signal(
+    signal.SIGINT,
+    stop_handler
+)
+
+signal.signal(
+    signal.SIGTERM,
+    stop_handler
+)
+
+
+# ============================================================
+# CLEAN SHUTDOWN
+# ============================================================
+
+def clean_shutdown():
+
+    stopped = utc_now()
+
+
+    for information in list(
+        active_flows.values()
+    ):
+
+        db_execute(
+            """
+            UPDATE flows
+
+            SET
+                last_seen=?,
+                status='OBSERVER_STOPPED',
+                close_semantics=
+                    'OBSERVER_TERMINATION'
+
+            WHERE id=?
+            """,
+            (
+                stopped,
+                information[
+                    "db_id"
+                ]
+            )
+        )
+
+
+    db_execute(
+        """
+        UPDATE sessions
+
+        SET stopped_at=?
+
+        WHERE session_id=?
+        """,
+        (
+            stopped,
+            SESSION_ID
+        )
+    )
+
+
+    build_activity_report()
+
+
+# ============================================================
+# MAIN
+# ============================================================
+
+def main():
+
+    print()
+
+    print(
+        "=" * 72
+    )
+
+    print(
+        f" MACHINE OBSERVER V{VERSION}"
+    )
+
+    print(
+        "=" * 72
+    )
+
+
+    # --------------------------------------------------------
+    # Migration MUST happen before schema creation.
+    # --------------------------------------------------------
+
+    migrate_database()
+
+    init_database()
+
+    start_session()
+
+
+    print()
+
+    print(
+        "OBSERVED   : "
+        "Process + PID + CmdLine + TCP"
+    )
+
+    print(
+        "CORRELATED : "
+        "Windows DNS + PTR context"
+    )
+
+    print(
+        "PROBED     : "
+        "TLS certificate + HTTP HEAD"
+    )
+
+    print(
+        "INFERRED   : "
+        "Activity Engine"
+    )
+
+    print(
+        f"Database   : {DB_PATH}"
+    )
+
+    print(
+        f"Session    : {SESSION_ID}"
+    )
+
+    print(
+        f"TCP poll   : {POLL_SECONDS}s"
+    )
+
+    print(
+        "Ctrl+C to stop"
+    )
+
+    print()
+
+
+    # --------------------------------------------------------
+    # DNS BEFORE SOCKET BASELINE
+    # --------------------------------------------------------
+
+    print(
+        "Reading Windows DNS cache..."
+    )
+
+    refresh_dns_cache()
+
+    print(
+        f"DNS addresses indexed: "
+        f"{len(dns_map)}"
+    )
+
+
+    # --------------------------------------------------------
+    # INITIAL SOCKET BASELINE
+    # --------------------------------------------------------
+
+    if not establish_baseline():
+
+        raise SystemExit(1)
+
+
+    last_dns = time.monotonic()
+
+    last_report = time.monotonic()
+
+
+    try:
+
+        while running:
+
+
+            current = (
+                time.monotonic()
+            )
+
+
+            # ------------------------------------------------
+            # DNS REFRESH
+            # ------------------------------------------------
+
+            if (
+                current
+                - last_dns
+                >= DNS_REFRESH_SECONDS
+            ):
+
+                refresh_dns_cache()
+
+                last_dns = current
+
+
+            # ------------------------------------------------
+            # TCP SENSOR
+            # ------------------------------------------------
+
+            scan_tcp()
+
+
+            # ------------------------------------------------
+            # ACTIVITY REPORT
+            # ------------------------------------------------
+
+            if (
+                current
+                - last_report
+                >= REPORT_INTERVAL_SECONDS
+            ):
+
+                build_activity_report()
+
+                last_report = current
+
+
+            time.sleep(
+                POLL_SECONDS
+            )
+
+
+    except KeyboardInterrupt:
+
+        pass
+
+
+    finally:
+
+        print()
+
+        print(
+            "Stopping Machine Observer..."
+        )
+
+        clean_shutdown()
+
+        db.close()
+
+        print()
+
+        print(
+            "=" * 72
+        )
+
+        print(
+            " MACHINE OBSERVER STOPPED"
+        )
+
+        print(
+            "=" * 72
+        )
+
+        print(
+            f"Database preserved: "
+            f"{DB_PATH}"
+        )
+
+        print(
+            f"Session: {SESSION_ID}"
+        )
+
+        print()
+
+
+# ============================================================
+# ENTRY
+# ============================================================
+
+if __name__ == "__main__":
+
+    main()
