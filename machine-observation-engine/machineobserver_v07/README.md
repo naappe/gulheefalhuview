@@ -1,19 +1,34 @@
 # MachineObserver V0.7
 
-V0.7 is the modular consolidated implementation. V0.6.1 remains the proof-of-concept/history.
+V0.7 is the modular consolidated implementation. V0.6.1 remains proof-of-concept/history and should not be overwritten.
 
-## Layout
+## Pipeline
 
-- observer.py — controller
-- config.py — configuration and database boundary
+Sensors -> Normalizer -> Correlator -> Evidence Store -> Reasoner -> Human Meaning
+
+## Current verified work
+
+- Windows TCP snapshots preserve PID plus local/remote endpoints.
+- Browser-side DevTools telemetry observes post-TLS URL/path, method, status, protocol, remote endpoint and TLS metadata when the browser exposes them.
+- Browser and OS observations are joined with hard endpoint/time/process gates.
+- Ambiguous socket candidates remain ambiguous; no fabricated confidence value is used.
+- Synthetic DevTools-compatible events can regression-test the collector without representing them as real network observations.
+
+## Key files
+
+- observer.py — V0.7 controller
+- config.py — configuration/database boundary
 - database.py — SQLite schema/bootstrap
-- models.py — evidence classes and shared models
-- sensors/ — process, TCP, DNS and PTR collectors
-- correlation/ — DNS, temporal and activity correlation
-- probes/ — optional TLS/HTTP active tests
+- models.py — evidence classes/shared models
+- sensors/ — process, TCP, DNS, PTR and browser collectors
+- correlation/ — DNS, temporal, browser/socket and activity correlation
+- probes/ — optional active tests; OFF by default
 - reasoning/ — evidence-aware reasoner
 - tools/ — reports
-- data/observer-v07.db — fresh V0.7 evidence database
+- Join-Test.ps1 — hard-gated Browser <-> OS candidate correlation test
+- FakeDevTools.ps1 — localhost synthetic protocol test server
+- PROTOCOL_INDEPENDENCE.md — browser protocol/evidence contract
+- data/observer-v07.db — fresh V0.7 database boundary
 
 ## Invariants
 
@@ -21,7 +36,11 @@ V0.7 is the modular consolidated implementation. V0.6.1 remains the proof-of-con
 2. PTR is CONTEXT, not hostname identity proof.
 3. Active probes are OFF by default.
 4. Probe traffic is PROBED and isolated from passive evidence.
-5. HTTP 403 means HTTP responded with status 403; it does not mean the network path failed.
+5. HTTP status and transport reachability are separate facts.
 6. UNKNOWN remains UNKNOWN.
 7. Browser process attribution is not browser-tab attribution.
-8. TCP/DNS observation does not reveal encrypted HTTPS URL/path or content.
+8. TCP/DNS observation does not reveal encrypted HTTPS URL/path/content.
+9. Browser telemetry can expose post-TLS application metadata because the browser itself has processed TLS.
+10. IP/port/time/PID correlation can produce a candidate set; it must not claim an exact socket when multiple candidates survive.
+11. Numeric rank is not confidence/probability.
+12. Synthetic protocol events are test evidence, never real service evidence.
