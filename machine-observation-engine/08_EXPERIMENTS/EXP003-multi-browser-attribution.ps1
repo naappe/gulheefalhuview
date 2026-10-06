@@ -17,7 +17,13 @@ $socketJob=Start-Job -ArgumentList $socketFile,$Duration -ScriptBlock {
    $key="$($_.LocalAddress):$($_.LocalPort)>$($_.RemoteAddress):$($_.RemotePort)"
    if($seen.ContainsKey($key)){return};$seen[$key]=$true
    $p=Get-CimInstance Win32_Process -Filter "ProcessId=$($_.OwningProcess)" -ErrorAction SilentlyContinue
-   [ordered]@{timestamp=(Get-Date).ToString("o");localAddr=$_.LocalAddress;localPort=$_.LocalPort;remoteAddr=$_.RemoteAddress;remotePort=$_.RemotePort;pid=$_.OwningProcess;procName=$p.Name;executable=$p.ExecutablePath;parentPid=$p.ParentProcessId;commandLine=$p.CommandLine}|ConvertTo-Json -Compress|Add-Content $file -Encoding UTF8
+   $role="unknown"
+   if($p.CommandLine -match '--utility-sub-type=network\.mojom\.NetworkService'){$role="network-service"}
+   elseif($p.CommandLine -match '--type=renderer'){$role="renderer"}
+   elseif($p.CommandLine -match '--type=gpu'){$role="gpu"}
+   elseif($p.CommandLine -match '--type=utility'){$role="utility"}
+   elseif($p.Name -in @("chrome.exe","msedge.exe")){$role="browser"}
+   [ordered]@{timestamp=(Get-Date).ToString("o");localAddr=$_.LocalAddress;localPort=$_.LocalPort;remoteAddr=$_.RemoteAddress;remotePort=$_.RemotePort;pid=$_.OwningProcess;procName=$p.Name;executable=$p.ExecutablePath;parentPid=$p.ParentProcessId;commandLine=$p.CommandLine;role=$role}|ConvertTo-Json -Compress|Add-Content $file -Encoding UTF8
   }
   Start-Sleep -Milliseconds 250
  }
@@ -66,6 +72,7 @@ foreach($t in $targets){
  Get-Content $file|ForEach-Object{try{$_|ConvertFrom-Json}catch{}}|ForEach-Object{
   $r=$_;$matches=@($sockets|Where-Object{$_.remoteAddr -eq $r.remoteIP -and $_.remotePort -eq $r.remotePort})
   $apps=@($matches|ForEach-Object{if($_.executable){[IO.Path]::GetFileNameWithoutExtension($_.executable)}elseif($_.procName){[IO.Path]::GetFileNameWithoutExtension($_.procName)}}|Sort-Object -Unique)
-  [pscustomobject]@{Browser=$t.Label;Host=$r.host;RemoteIP=$r.remoteIP;Port=$r.remotePort;SocketApps=($apps-join ",");Candidates=$matches.Count}
+  $roles=@($matches|Where-Object{$_.role}|Select-Object -ExpandProperty role -Unique)
+  [pscustomobject]@{Browser=$t.Label;Host=$r.host;RemoteIP=$r.remoteIP;Port=$r.remotePort;SocketApps=($apps-join ",");SocketRoles=($roles-join ",");Candidates=$matches.Count}
  }|Format-Table -AutoSize
 }
