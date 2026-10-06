@@ -15,7 +15,16 @@ if(-not(Get-Command pktmon.exe -ErrorAction SilentlyContinue)){throw "pktmon.exe
 $admin=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if(-not $admin){throw "Transport ETW capture requires an elevated PowerShell window."}
 # Clear a stale Packet Monitor collection only; this does not terminate browsers.
-& pktmon stop 2>$null | Out-Null
+# Best-effort stale-session cleanup. "Packet Monitor is not running" is benign.
+$oldEap=$ErrorActionPreference
+try {
+  $ErrorActionPreference="SilentlyContinue"
+  $null = & pktmon stop 2>&1
+} catch {
+  # No active PktMon session is a valid clean starting state.
+} finally {
+  $ErrorActionPreference=$oldEap
+}
 Remove-Item $etl,$txt -Force -ErrorAction SilentlyContinue
 $start=(Get-Date).ToUniversalTime()
 $startOutput=@(& pktmon start --trace -p Microsoft-Windows-TCPIP --file-name $etl --log-mode circular 2>&1)
