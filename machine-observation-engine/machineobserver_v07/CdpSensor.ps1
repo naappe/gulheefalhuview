@@ -1,4 +1,4 @@
-# MachineObserver V3.2.3 CDP metadata sensor.
+# MachineObserver V3.2.4 CDP metadata sensor - locked-target capable.
 # Privacy: no headers, cookies, request/response bodies, storage values, query strings, or fragments.
 function ConvertTo-RedactedUrl {
     param([string]$Url)
@@ -31,7 +31,10 @@ function Get-CdpTargets {
 function Select-CdpPageTarget {
     param(
         [Parameter(Mandatory)][object[]]$Targets,
-        [string]$TargetHost = ""
+        [string]$TargetHost = "",
+        [string]$TargetId = "",
+        [string]$WebSocketDebuggerUrl = "",
+        [string]$TargetUrl = ""
     )
 
     $wanted = $TargetHost.Trim().ToLowerInvariant()
@@ -73,29 +76,30 @@ function Invoke-CdpCapture {
     $deadline = (Get-Date).AddSeconds($Seconds)
     $page = $null
     $lastDiscoveryError = $null
+    $targetId = $TargetId
+    $targetUrl = $TargetUrl
+    $wsUrl = $WebSocketDebuggerUrl
 
-    while (($null -eq $page) -and ((Get-Date) -lt $deadline)) {
-        try {
-            $targets = @(Get-CdpTargets -Port $Port)
-            $page = Select-CdpPageTarget -Targets $targets -TargetHost $TargetHost
+    if ([string]::IsNullOrWhiteSpace($wsUrl)) {
+        while (($null -eq $page) -and ((Get-Date) -lt $deadline)) {
+            try {
+                $targets = @(Get-CdpTargets -Port $Port)
+                $page = Select-CdpPageTarget -Targets $targets -TargetHost $TargetHost
+            }
+            catch { $lastDiscoveryError = $_.Exception.Message }
+            if ($null -eq $page) { Start-Sleep -Milliseconds 250 }
         }
-        catch {
-            $lastDiscoveryError = $_.Exception.Message
+        if ($null -eq $page) {
+            if ($lastDiscoveryError) { throw "[$Label] no matching CDP page target on port $Port. Last discovery error: $lastDiscoveryError" }
+            throw "[$Label] no matching CDP page target on port $Port for host '$TargetHost'"
         }
-
-        if ($null -eq $page) { Start-Sleep -Milliseconds 250 }
+        $targetId = [string]$page.id
+        $targetUrl = [string]$page.url
+        $wsUrl = [string]$page.webSocketDebuggerUrl
     }
-
-    if ($null -eq $page) {
-        if ($lastDiscoveryError) {
-            throw "[$Label] no matching CDP page target on port $Port. Last discovery error: $lastDiscoveryError"
-        }
-        throw "[$Label] no matching CDP page target on port $Port for host '$TargetHost'"
+    elseif ([string]::IsNullOrWhiteSpace($targetId)) {
+        throw "[$Label] TargetId required with WebSocketDebuggerUrl"
     }
-
-    $targetId = [string]$page.id
-    $targetUrl = [string]$page.url
-    $wsUrl = [string]$page.webSocketDebuggerUrl
 
     if ([string]::IsNullOrWhiteSpace($wsUrl)) {
         throw "[$Label] selected target '$targetId' has no WebSocket debugger URL"
