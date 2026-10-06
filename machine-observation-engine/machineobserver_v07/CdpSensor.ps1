@@ -68,7 +68,10 @@ function Invoke-CdpCapture {
         [Parameter(Mandatory)][string]$OutFile,
         [Parameter(Mandatory)][string]$Label,
         [int]$Seconds = 60,
-        [string]$TargetHost = ""
+        [string]$TargetHost = "",
+        [string]$TargetId = "",
+        [string]$WebSocketDebuggerUrl = "",
+        [string]$TargetUrl = ""
     )
 
     if (Test-Path $OutFile) { Remove-Item $OutFile -Force }
