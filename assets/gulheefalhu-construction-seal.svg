@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Gulheefalhu View construction seal">
+<title>Gulheefalhu View — Construction &amp; Building Services</title>
+<defs><path id="top" d="M 88,300 A 212,212 0 0 1 512,300"/><path id="bottom" d="M 512,300 A 212,212 0 0 1 88,300"/></defs>
+<g fill="none" stroke="#823F3E" stroke-width="5"><circle cx="300" cy="300" r="276"/><circle cx="300" cy="300" r="263" stroke-width="2.3"/><circle cx="300" cy="300" r="184" stroke-width="2.6"/></g>
+<g fill="#823F3E" font-family="Georgia,serif" text-anchor="middle">
+<text font-size="26" font-weight="700" letter-spacing="1"><textPath href="#top" startOffset="50%">CONSTRUCTION &amp; BUILDING SERVICES</textPath></text>
+<text font-size="26" font-weight="700" letter-spacing="1"><textPath href="#bottom" startOffset="50%">CONSTRUCTION &amp; BUILDING SERVICES</textPath></text>
+<path d="M205 273 L300 197 L395 273 L375 273 L300 221 L225 273Z" fill="#B87569"/>
+<rect x="274" y="251" width="20" height="20" fill="#823F3E"/><rect x="300" y="251" width="20" height="20" fill="#823F3E"/>
+<path d="M260 201V157H282V184M299 183V128H321V194M335 202V151H357V223" stroke="#B87569" stroke-width="13" fill="none"/>
+<path d="M195 289Q245 264 300 289T405 289" stroke="#B87569" stroke-width="7" fill="none"/>
+<text x="300" y="344" font-size="40" font-weight="700" letter-spacing="-1">GULHEEFALHU</text>
+<path d="M193 370H250M350 370H407" stroke="#B87569" stroke-width="2"/>
+<text x="300" y="383" font-size="36" letter-spacing="7" fill="#B87569">VIEW</text>
+</g></svg>
