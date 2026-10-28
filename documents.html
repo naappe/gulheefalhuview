@@ -140,6 +140,44 @@
 .paper .gv-sign{color:#555!important;border:0!important;border-top:1px solid #b9b9b9!important;padding:9px 0 0!important;font:9px/1.5 Arial,sans-serif!important}
 .paper .gv-footer{display:flex!important;justify-content:space-between!important;gap:15px!important;border-top:1px solid #ececec!important;color:#777!important;margin-top:26px!important;padding-top:10px!important;font:8px/1.5 Arial,sans-serif!important}
 @media print{.paper{padding:4mm 5mm!important;box-shadow:none!important}.paper .gv-logo img{width:135px!important;max-height:100px!important}.paper .gv-mast,.paper .gv-hero,.paper .gv-details,.paper .gv-bottom,.paper .gv-accept{break-inside:avoid!important}.paper .gv-table tr{break-inside:avoid!important}}
+
+/* Final typography and print-flow refinements: document only */
+.paper{font-size:11.5px!important;line-height:1.56!important}
+.paper .gv-mast{grid-template-columns:minmax(175px,1fr) minmax(205px,1fr)!important;gap:24px!important;padding-bottom:14px!important}
+.paper .gv-logo img,.paper.a5.landscape .gv-logo img{width:177px!important;max-height:128px!important}
+.paper .gv-contact{font-size:10.5px!important;line-height:1.75!important}
+.paper .gv-hero{grid-template-columns:minmax(0,1fr) minmax(185px,215px)!important;gap:20px!important;padding:16px 0 13px!important}
+.paper .gv-hero h2{font-size:27px!important;line-height:1.2!important}
+.paper .gv-quote-facts{font-size:10.5px!important}
+.paper .gv-quote-facts div{grid-template-columns:72px minmax(0,1fr)!important;gap:12px!important;align-items:baseline!important}
+.paper .gv-details{gap:22px!important;padding-bottom:17px!important}
+.paper .gv-info-box p{font-size:11.5px!important;line-height:1.55!important;margin-top:6px!important}
+.paper .gv-table thead th{font-size:9.5px!important;line-height:1.45!important;padding:9px 7px!important}
+.paper .gv-table tbody td{font-size:11px!important;line-height:1.5!important;padding:9px 7px!important}
+.paper .gv-table td:nth-child(4),.paper .gv-table td:nth-child(5){font-variant-numeric:tabular-nums!important}
+.paper .gv-table td:last-child{font-weight:700!important}
+.paper .gv-bottom{margin-top:20px!important;gap:22px!important}
+.paper .gv-notes{font-size:10.5px!important;line-height:1.6!important;overflow-wrap:anywhere!important}
+.paper .gv-pricing .total{font-size:13.5px!important;line-height:1.45!important}
+.paper .gv-accept{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:38px!important;margin-top:35px!important}
+.paper .gv-sign{min-width:0!important;white-space:normal!important;overflow-wrap:normal!important;font-size:10px!important;line-height:1.5!important;min-height:32px!important;padding-top:10px!important}
+.paper .gv-footer{margin-top:20px!important;font-size:9px!important}
+.paper .gv-table{break-inside:auto!important;page-break-inside:auto!important}
+.paper .gv-table thead{display:table-header-group!important}
+.paper .gv-table tr{break-inside:avoid!important;page-break-inside:avoid!important}
+.paper .gv-bottom,.paper .gv-accept{break-inside:avoid!important;page-break-inside:avoid!important}
+@media print{
+.paper{padding:2mm 3mm!important;overflow:visible!important;min-height:0!important;height:auto!important}
+.paper .gv-mast{gap:18px!important;padding-bottom:9px!important}
+.paper .gv-logo img,.paper.a5.landscape .gv-logo img{width:150px!important;max-height:110px!important}
+.paper .gv-contact{font-size:9.5px!important;line-height:1.6!important}
+.paper .gv-hero{padding:11px 0 10px!important}
+.paper .gv-details{padding-bottom:11px!important}
+.paper .gv-table thead th,.paper .gv-table tbody td{padding:7px 6px!important}
+.paper .gv-bottom{margin-top:14px!important}
+.paper .gv-accept{margin-top:25px!important}
+.paper .gv-footer{margin-top:14px!important}
+}
 </style><style id="pageStyle">@page{size:A5 landscape;margin:8mm}</style></head><body><div class="app"><aside class="sidebar"><div class="brand"><img class="brand-logo" src="assets/gulheefalhu-view-logo.png?v=clean-20261028" alt="Gulheefalhu View official logo"><small>Documents workspace</small></div><nav id="nav"></nav></aside><div class="main"><header class="top"><div><div class="eyebrow">GULHEEFALHU VIEW</div><h1 id="title">Dashboard</h1></div><button class="primary" onclick="newDoc('quotation')">+ New Document</button></header><div class="content" id="content"></div></div></div><script>
 const KEY='gv-documents-v1',CUSTOM='gv-customers-v1';let docs=JSON.parse(localStorage.getItem(KEY)||'[]'),customers=JSON.parse(localStorage.getItem(CUSTOM)||'[]'),view='dashboard',editing=null,doc=null;const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const money=n=>(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});const kinds={quotation:'Quotation',proforma:'Payment Request',invoice:'Invoice',receipt:'Payment Receipt'};function ref(type){const prefix=({quotation:'QT',proforma:'PR',invoice:'INV',receipt:'PAY'}[type]||'DOC');const year=new Date().getFullYear();const seqKey='gv-sequence-'+prefix+'-'+year;const existing=docs.filter(d=>typeof d.number==='string'&&d.number.startsWith(prefix+'-'+year+'-')).map(d=>Number(d.number.split('-').at(-1))).filter(Number.isFinite);const next=Math.max(Number(localStorage.getItem(seqKey))||0,...existing,0)+1;localStorage.setItem(seqKey,String(next));return prefix+'-'+year+'-'+String(next).padStart(4,'0')}function store(){localStorage.setItem(KEY,JSON.stringify(docs));localStorage.setItem(CUSTOM,JSON.stringify(customers))}function total(d){return (d.items||[]).reduce((a,x)=>a+(+x.qty||0)*(+x.price||0),0)}/* Preserve the current page and unsaved editor draft across browser refreshes. */
 const SESSION_KEY='gv-workspace-session-v1';
