@@ -109,6 +109,37 @@
 .paper.a5.landscape .gv-logo img{width:150px!important;max-height:110px!important}
 .brand-logo{width:min(155px,100%)!important}
 @media print{.paper{padding:4mm 5mm!important}.paper .gv-logo img{width:145px!important;max-height:100px!important}}
+
+/* Architectural editorial stationery — document only; no stamp, no gradients */
+.paper{background:#fff!important;color:#22282d!important;font-family:Arial,Helvetica,sans-serif!important;font-size:11px!important;line-height:1.52!important;padding:11mm 13mm!important}
+.paper .gv-mast{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:18px!important;align-items:center!important;border:0!important;border-bottom:1px solid #d8c3be!important;padding:0 0 13px!important}
+.paper .gv-logo img,.paper.a5.landscape .gv-logo img{width:155px!important;height:auto!important;max-height:116px!important;object-fit:contain!important}
+.paper .gv-contact{max-width:none!important;text-align:right!important;font-size:9.5px!important;line-height:1.7!important;color:#42474c!important;letter-spacing:0!important}
+.paper .gv-hero{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,180px)!important;align-items:start!important;gap:18px!important;padding:17px 0 16px!important;margin:0!important;border:0!important;background:white!important}
+.paper .gv-hero h2{font:700 27px/1.15 Georgia,'Times New Roman',serif!important;letter-spacing:.3px!important;color:#563e3d!important;text-transform:uppercase!important;margin:0!important}
+.paper .gv-quote-facts{min-width:0!important;font:10px/1.6 Arial,sans-serif!important;color:#333!important}
+.paper .gv-quote-facts div{display:grid!important;grid-template-columns:70px minmax(0,1fr)!important;gap:10px!important;justify-content:initial!important;padding:2px 0!important}
+.paper .gv-quote-facts b{font-weight:600!important;color:#666!important}
+.paper .gv-details{display:grid!important;grid-template-columns:1fr 1fr!important;gap:24px!important;padding:0 0 20px!important;border:0!important}
+.paper .gv-info-box{background:#fff!important;border:0!important;border-top:1px solid #cda79d!important;min-height:0!important;padding-top:7px!important}
+.paper .gv-info-box .gv-section-label{background:transparent!important;color:#8e625c!important;padding:0!important;font:700 9px/1.5 Arial,sans-serif!important;letter-spacing:1.1px!important;text-transform:uppercase!important}
+.paper .gv-info-box p{margin:8px 0 0!important;font:11px/1.6 Arial,sans-serif!important;color:#2a2b2d!important;overflow-wrap:anywhere}
+.paper .gv-info-box strong{font-weight:700!important}
+.paper .gv-table{width:100%!important;table-layout:fixed!important;border-collapse:collapse!important}
+.paper .gv-table thead th{background:#fff!important;color:#5b4543!important;border:0!important;border-top:1px solid #cda79d!important;border-bottom:1px solid #cda79d!important;font:700 9px/1.35 Arial,sans-serif!important;letter-spacing:.1px!important;text-transform:none!important;padding:10px 7px!important}
+.paper .gv-table tbody td{background:#fff!important;color:#25282a!important;border:0!important;border-bottom:1px solid #e8e8e8!important;padding:10px 7px!important;font:10.5px/1.5 Arial,sans-serif!important;vertical-align:top!important}
+.paper .gv-table td:first-child,.paper .gv-table th:first-child{text-align:center!important}
+.paper .gv-table td:nth-child(3),.paper .gv-table th:nth-child(3),.paper .gv-table td:nth-child(4),.paper .gv-table th:nth-child(4),.paper .gv-table td:nth-child(5),.paper .gv-table th:nth-child(5){text-align:right!important}
+.paper .gv-bottom{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(155px,34%)!important;gap:26px!important;align-items:start!important;margin-top:23px!important}
+.paper .gv-notes{font:10px/1.65 Arial,sans-serif!important;color:#333!important}
+.paper .gv-notes .gv-section-label{color:#563e3d!important;font:700 14px/1.4 Georgia,serif!important;margin-bottom:9px!important;letter-spacing:0!important;text-transform:none!important}
+.paper .gv-pricing{background:#fff!important;border:0!important;border-top:2px solid #563e3d!important;padding:12px 0 0!important;margin:0!important}
+.paper .gv-pricing .total{color:#563e3d!important;font:700 13px/1.4 Arial,sans-serif!important;gap:12px!important;align-items:baseline!important}
+.paper .gv-pricing small{display:block!important;margin-top:10px!important;font-size:9px!important;line-height:1.5!important;color:#666!important}
+.paper .gv-accept{display:grid!important;grid-template-columns:1fr 1fr!important;gap:35px!important;border:0!important;margin-top:28px!important;padding:0!important}
+.paper .gv-sign{color:#555!important;border:0!important;border-top:1px solid #b9b9b9!important;padding:9px 0 0!important;font:9px/1.5 Arial,sans-serif!important}
+.paper .gv-footer{display:flex!important;justify-content:space-between!important;gap:15px!important;border-top:1px solid #ececec!important;color:#777!important;margin-top:26px!important;padding-top:10px!important;font:8px/1.5 Arial,sans-serif!important}
+@media print{.paper{padding:4mm 5mm!important;box-shadow:none!important}.paper .gv-logo img{width:135px!important;max-height:100px!important}.paper .gv-mast,.paper .gv-hero,.paper .gv-details,.paper .gv-bottom,.paper .gv-accept{break-inside:avoid!important}.paper .gv-table tr{break-inside:avoid!important}}
 </style><style id="pageStyle">@page{size:A5 landscape;margin:8mm}</style></head><body><div class="app"><aside class="sidebar"><div class="brand"><img class="brand-logo" src="assets/gulheefalhu-view-logo.png?v=clean-20261028" alt="Gulheefalhu View official logo"><small>Documents workspace</small></div><nav id="nav"></nav></aside><div class="main"><header class="top"><div><div class="eyebrow">GULHEEFALHU VIEW</div><h1 id="title">Dashboard</h1></div><button class="primary" onclick="newDoc('quotation')">+ New Document</button></header><div class="content" id="content"></div></div></div><script>
 const KEY='gv-documents-v1',CUSTOM='gv-customers-v1';let docs=JSON.parse(localStorage.getItem(KEY)||'[]'),customers=JSON.parse(localStorage.getItem(CUSTOM)||'[]'),view='dashboard',editing=null,doc=null;const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const money=n=>(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});const kinds={quotation:'Quotation',proforma:'Payment Request',invoice:'Invoice',receipt:'Payment Receipt'};function ref(type){const prefix=({quotation:'QT',proforma:'PR',invoice:'INV',receipt:'PAY'}[type]||'DOC');const year=new Date().getFullYear();const seqKey='gv-sequence-'+prefix+'-'+year;const existing=docs.filter(d=>typeof d.number==='string'&&d.number.startsWith(prefix+'-'+year+'-')).map(d=>Number(d.number.split('-').at(-1))).filter(Number.isFinite);const next=Math.max(Number(localStorage.getItem(seqKey))||0,...existing,0)+1;localStorage.setItem(seqKey,String(next));return prefix+'-'+year+'-'+String(next).padStart(4,'0')}function store(){localStorage.setItem(KEY,JSON.stringify(docs));localStorage.setItem(CUSTOM,JSON.stringify(customers))}function total(d){return (d.items||[]).reduce((a,x)=>a+(+x.qty||0)*(+x.price||0),0)}/* Preserve the current page and unsaved editor draft across browser refreshes. */
 const SESSION_KEY='gv-workspace-session-v1';
