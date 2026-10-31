@@ -347,6 +347,12 @@
 .login-card .login-status{font-size:12px;color:#526c7c;margin:3px 0 6px}.login-card .login-error{color:#b42318;font-weight:600;margin:6px 0}
 @media(max-width:480px){.login-card{padding:27px 23px}}
 @media print{.login-screen{display:none!important}}
+/* Compact authorization and footer: remove obsolete acceptance-area spacing. */
+.paper .gv-document-footer{margin-top:16px!important;padding-top:10px!important}
+.paper .gv-document-footer .gv-accept{display:block!important;grid-template-columns:none!important;gap:0!important;padding:4px 0 5px!important;min-height:0!important}
+.paper .gv-document-footer .gv-footer{margin-top:9px!important;padding-top:7px!important;min-height:0!important;border-top:1px solid #e5e0dc!important}
+.paper .gv-document-footer .gv-sign{display:none!important}
+@media print{.paper .gv-document-footer{break-inside:avoid!important}}
 </style><style id="pageStyle">@page{size:A5 landscape;margin:8mm}
 /* A4 typographic alignment: consistent masthead, recipient hierarchy and page grid */
 .paper.a4.portrait{padding:16mm 17mm!important}
