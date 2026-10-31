@@ -374,8 +374,45 @@ let gvClient=null,gvUser=null,gvReady=false;
 function gvNotice(message){let el=document.getElementById('cloudNotice');if(!el){el=document.createElement('div');el.id='cloudNotice';el.className='cloud-notice';document.querySelector('.top').after(el)}el.textContent=message;el.hidden=!message}
 function gvLoginMessage(message,isError=false){const status=document.getElementById('loginStatus'),error=document.getElementById('loginError');if(status)status.textContent=isError?'':message;if(error)error.textContent=isError?message:''}
 function gvShowWorkspace(show){document.getElementById('loginScreen').hidden=show;document.getElementById('workspace').hidden=!show;if(show)render()}
-async function gvInit(){if(!window.supabase?.createClient){gvLoginMessage('Sign-in library unavailable. Check internet access and refresh.',true);return}gvClient=window.supabase.createClient(GV_URL,GV_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});const {data,error}=await gvClient.auth.getUser();if(!error&&data?.user){gvUser=data.user;gvShowWorkspace(true);await gvLoad()}else gvShowWorkspace(false);gvReady=true;gvLoginMessage('Secure sign-in ready');gvClient.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT'){gvUser=null;docs=[];customers=[];gvShowWorkspace(false)}else if(event==='TOKEN_REFRESHED'){gvUser=session?.user||null}})}
-async function loginSubmit(event){event.preventDefault();const btn=document.getElementById('loginSubmit');gvLoginMessage('Signing in securely…');if(!gvClient){gvLoginMessage('Sign-in service unavailable. Refresh the page and try again.',true);return}btn.disabled=true;btn.textContent='Signing in…';try{const authPromise=gvClient.auth.signInWithPassword({email:document.getElementById('loginEmail').value.trim(),password:document.getElementById('loginPassword').value});const {data,error}=await Promise.race([authPromise,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Sign-in timed out. Check your connection and retry.')),15000))]);if(error)throw error;if(!data?.user)throw new Error('No account returned by the sign-in service.');gvUser=data.user;document.getElementById('loginPassword').value='';gvShowWorkspace(true);gvLoginMessage('Signed in');await gvLoad()}catch(e){gvLoginMessage(e?.message||'Unable to sign in. Please retry.',true)}finally{btn.disabled=false;btn.textContent='Sign in'}}
+async function gvInit(){
+  if(!window.supabase?.createClient){gvLoginMessage('Sign-in library unavailable. Check internet access and refresh.',true);return}
+  gvClient=window.supabase.createClient(GV_URL,GV_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+  gvClient.auth.onAuthStateChange((event,session)=>{
+    if(event==='SIGNED_OUT'){gvUser=null;gvShowWorkspace(false);gvLoginMessage('Signed out')}
+    else if(event==='TOKEN_REFRESHED' || event==='SIGNED_IN'){gvUser=session?.user||null}
+  });
+  gvReady=true;gvLoginMessage('Secure sign-in ready');
+  try{
+    const {data,error}=await Promise.race([
+      gvClient.auth.getSession(),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('Session check timed out')),8000))
+    ]);
+    if(error)throw error;
+    if(data?.session?.user){gvUser=data.session.user;gvShowWorkspace(true);await gvLoad()}
+    else gvShowWorkspace(false);
+  }catch(e){console.warn('Session initialization:',e);gvShowWorkspace(false);gvLoginMessage('Sign in to continue')}
+}
+async function loginSubmit(event){
+  event.preventDefault();
+  const btn=document.getElementById('loginSubmit');
+  if(!gvClient){gvLoginMessage('Sign-in service unavailable. Refresh the page and try again.',true);return}
+  btn.disabled=true;btn.textContent='Signing in…';gvLoginMessage('Signing in securely…');
+  try{
+    const {data,error}=await Promise.race([
+      gvClient.auth.signInWithPassword({email:document.getElementById('loginEmail').value.trim(),password:document.getElementById('loginPassword').value}),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error('Sign-in timed out. Check your connection and retry.')),15000))
+    ]);
+    if(error)throw error;
+    if(!data?.user)throw new Error('No account returned by the sign-in service.');
+    gvUser=data.user;
+    document.getElementById('loginPassword').value='';
+    gvShowWorkspace(true);gvLoginMessage('Signed in');
+    try{await gvLoad()}catch(loadError){console.error('Cloud document loading failed:',loadError);gvNotice('Signed in, but cloud loading failed: '+loadError.message)}
+  }catch(e){
+    console.error('Gulheefalhu View sign-in failed:',{message:e?.message,status:e?.status,code:e?.code});
+    gvLoginMessage(e?.message||'Unable to sign in. Please retry.',true)
+  }finally{btn.disabled=false;btn.textContent='Sign in'}
+}
 async function accountMenu(){if(!gvUser)return;const action=prompt('Signed in as '+gvUser.email+'\\nType SYNC to import/sync browser records or OUT to sign out.');if(action?.toUpperCase()==='OUT')await gvClient.auth.signOut();else if(action?.toUpperCase()==='SYNC')await gvUploadLocal()}
 async function gvLoad(){if(!gvUser)return;const [dr,cr]=await Promise.all([gvClient.from('gv_documents').select('payload'),gvClient.from('gv_customers').select('payload')]);if(dr.error||cr.error){gvNotice('Cloud read failed: '+(dr.error||cr.error).message);return}const remoteDocs=dr.data.map(x=>x.payload),remoteCustomers=cr.data.map(x=>x.payload);const localDocs=docs.slice(),localCustomers=customers.slice();docs=remoteDocs;customers=remoteCustomers;store();render();gvNotice('Cloud connected. '+docs.length+' documents and '+customers.length+' customers loaded.');if((localDocs.length||localCustomers.length)&&confirm('Cloud records loaded. Import any browser-only documents and customers into this account? Existing cloud records will be preserved.')){docs=remoteDocs.concat(localDocs.filter(d=>!remoteDocs.some(x=>x.id===d.id||x.number===d.number)));customers=remoteCustomers.concat(localCustomers.filter(c=>!remoteCustomers.some(x=>x.name?.toLowerCase()===c.name?.toLowerCase())));await gvUploadLocal()}}
 async function gvUploadLocal(){if(!gvUser)return alert('Sign in first');try{const drows=docs.map(d=>({id:String(d.id),owner_id:gvUser.id,document_number:String(d.number),payload:d}));const crows=customers.map(c=>({id:gvCustomerId(c),owner_id:gvUser.id,payload:c}));if(drows.length){const {error}=await gvClient.from('gv_documents').upsert(drows,{onConflict:'id'});if(error)throw error}if(crows.length){const {error}=await gvClient.from('gv_customers').upsert(crows,{onConflict:'id'});if(error)throw error}gvNotice('Cloud synchronized: '+docs.length+' documents, '+customers.length+' customers.')}catch(e){gvNotice('Cloud save failed: '+e.message);alert('Cloud save failed: '+e.message)}}
