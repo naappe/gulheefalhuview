@@ -534,7 +534,7 @@ function gvQuotationCards(list){
    (!legacy?'<button type="button" class="gv-work-secondary" onclick="invoiceFromQuotation(\''+actionId+'\')">Create / Open Invoice</button>':'')+
    (legacy?'<button type="button" class="gv-work-quiet" onclick="removePublishedFromList(\'fs\')">Hide</button>':'<button type="button" class="gv-work-quiet" onclick="deleteSavedDoc(\''+actionId+'\')">Delete</button>');
   const date=String(d.date||'');
-  const displayDate=/^\\d{4}-\\d{2}-\\d{2}$/.test(date)?new Date(date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):date;
+  const displayDate=/^\d{4}-\d{2}-\d{2}$/.test(date)?new Date(date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):date;
   return '<article class="gv-work-card" data-quote-card="1" data-doc-type="quotation">'+
    '<div class="gv-work-copy"><div class="gv-work-ref">'+esc(d.number)+'</div><h3>'+esc(project)+'</h3><div class="gv-work-client">'+esc(name)+'</div><div class="gv-work-meta">'+esc(displayDate)+' <span aria-hidden="true">·</span> '+esc(d.paper||'A4')+' <span aria-hidden="true">·</span> <span class="'+(priced?'gv-work-priced':'gv-work-draft')+'">'+(priced?'Priced':'Pricing pending')+'</span></div></div>'+
    '<div class="gv-work-side"><div class="gv-work-amount"><small>Total (MVR)</small><strong>'+money(amount)+'</strong></div><div class="gv-work-buttons">'+actions+'</div></div></article>';
